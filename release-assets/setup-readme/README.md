@@ -36,7 +36,7 @@ You should now see a small floating window in the top-right corner of your scree
 
 ### ② Install the Chrome extension
 
-> **Easy path** — if Claude HUD is already on the Chrome Web Store, just install from there: https://chromewebstore.google.com/detail/claude-hud/YOUR-EXTENSION-ID and skip to step ③.
+> **Easy path** — if Claude HUD is already on the Chrome Web Store, just install from there (link will be added once the listing is approved) and skip to step ③.
 >
 > **Manual path** (for now, while the Chrome Web Store version is in review):
 
