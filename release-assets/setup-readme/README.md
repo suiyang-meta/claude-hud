@@ -85,6 +85,6 @@ See `TROUBLESHOOTING.md`.
 
 This is a one-person side project. If something broke or you have ideas — tell me:
 - Email: hello@claudehud.app
-- Twitter: @YourHandle
+- Twitter/X: (TBD)
 
 Claude HUD is not affiliated with Anthropic.
