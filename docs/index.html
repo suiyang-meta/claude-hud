@@ -98,6 +98,44 @@
       display: block;
     }
 
+    /* HUD mockup */
+    .hud-mockup-wrap {
+      margin: 60px auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(30,30,40,0.6);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      padding: 40px 24px;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+    }
+    .hud-widget {
+      background: rgba(10,10,10,0.97);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 12px;
+      padding: 14px 16px;
+      width: 278px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.7);
+      font-family: 'SF Mono', 'Menlo', monospace;
+    }
+    .hud-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .hud-title { font-size: 9px; letter-spacing: 2.5px; text-transform: uppercase; color: rgba(255,255,255,0.22); display: flex; align-items: center; gap: 6px; }
+    .hud-pulse { width: 5px; height: 5px; border-radius: 50%; background: #00e676; animation: hpulse 2s infinite; flex-shrink: 0; }
+    @keyframes hpulse { 0%,100%{opacity:1} 50%{opacity:0.15} }
+    .hud-dots { display: flex; gap: 6px; }
+    .hud-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .hud-stat { margin-bottom: 11px; }
+    .hud-stat:last-child { margin-bottom: 0; }
+    .hud-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .hud-label { font-size: 9px; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: 0.8px; }
+    .hud-val { font-size: 10px; font-weight: 700; }
+    .hud-track { height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; overflow: hidden; }
+    .hud-fill { height: 100%; border-radius: 2px; }
+    .hud-sub { font-size: 8px; color: rgba(255,255,255,0.15); margin-top: 3px; }
+    .hud-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 9px 0; }
+    .hud-footer { margin-top: 9px; font-size: 8px; color: rgba(255,255,255,0.12); text-align: right; }
+
     section { margin-bottom: 70px; }
     h2 {
       font-size: 26px;
@@ -159,7 +197,60 @@
     <div class="tip-jar">Pay what you want · Apple Silicon only · free on GitHub</div>
   </header>
 
-  <img src="screenshot-hero.png" alt="Claude HUD floating in the corner of a desktop" class="hero-image">
+  <div class="hud-mockup-wrap">
+    <div class="hud-widget">
+      <div class="hud-header">
+        <div class="hud-title">
+          <div class="hud-pulse"></div>
+          Claude HUD
+        </div>
+        <div class="hud-dots">
+          <div class="hud-dot" style="background:#febc2e"></div>
+          <div class="hud-dot" style="background:#ff5f57"></div>
+        </div>
+      </div>
+
+      <div class="hud-stat">
+        <div class="hud-row">
+          <span class="hud-label">Session</span>
+          <span class="hud-val" style="color:#ffcc00">62%</span>
+        </div>
+        <div class="hud-track"><div class="hud-fill" style="width:62%;background:#ffcc00"></div></div>
+        <div class="hud-sub">Resets in 1h 24m</div>
+      </div>
+
+      <div class="hud-divider"></div>
+
+      <div class="hud-stat">
+        <div class="hud-row">
+          <span class="hud-label">Weekly · All</span>
+          <span class="hud-val" style="color:#00e676">31%</span>
+        </div>
+        <div class="hud-track"><div class="hud-fill" style="width:31%;background:#00e676"></div></div>
+        <div class="hud-sub">Resets Mon 00:00</div>
+      </div>
+
+      <div class="hud-stat">
+        <div class="hud-row">
+          <span class="hud-label">Weekly · Sonnet</span>
+          <span class="hud-val" style="color:#00e676">28%</span>
+        </div>
+        <div class="hud-track"><div class="hud-fill" style="width:28%;background:#00e676"></div></div>
+      </div>
+
+      <div class="hud-divider"></div>
+
+      <div class="hud-stat">
+        <div class="hud-row">
+          <span class="hud-label">Routines 4/5</span>
+          <span class="hud-val" style="color:#ff4040">88%</span>
+        </div>
+        <div class="hud-track"><div class="hud-fill" style="width:88%;background:#ff4040"></div></div>
+      </div>
+
+      <div class="hud-footer">12s ago</div>
+    </div>
+  </div>
 
   <section>
     <h2>The problem</h2>
