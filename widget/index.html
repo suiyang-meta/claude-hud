@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; }
+    html, body { background: transparent; overflow: hidden; font-family: 'SF Mono', 'Menlo', monospace; width: 100%; height: 100%; }
+    #hud {
+      background: rgba(10,10,10,0.94);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 12px 14px;
+      width: 100%;
+      height: 100%;
+      -webkit-app-region: drag;
+      opacity: 0.7;
+      transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    #hud.hovered { opacity: 1.0; }
+    #hud.hidden  { opacity: 0.05; }
+    .no-drag { -webkit-app-region: no-drag; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .title { font-size: 9px; letter-spacing: 2.5px; text-transform: uppercase; color: rgba(255,255,255,0.22); }
+    .controls { display: flex; gap: 6px; align-items: center; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; cursor: pointer; }
+    .dot-close { background: #ff5f57; }
+    .dot-hide  { background: #febc2e; }
+    .stat { margin-bottom: 10px; }
+    .stat:last-child { margin-bottom: 0; }
+    .stat-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .stat-label { font-size: 9px; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: 0.8px; }
+    .stat-value { font-size: 10px; font-weight: 700; min-width: 32px; text-align: right; }
+    .bar-track { height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+    .green  { color: #00e676; } .yellow { color: #ffcc00; } .red { color: #ff4040; }
+    .bar-green { background: #00e676; } .bar-yellow { background: #ffcc00; } .bar-red { background: #ff4040; }
+    .reset-text { font-size: 8px; color: rgba(255,255,255,0.15); margin-top: 3px; }
+    .divider { height: 1px; background: rgba(255,255,255,0.05); margin: 8px 0; }
+    .empty { font-size: 10px; color: rgba(255,255,255,0.35); text-align: center; padding: 6px 0; line-height: 1.7; }
+    .empty .headline { color: rgba(255,255,255,0.55); font-weight: 700; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .empty .hint { font-size: 8px; color: rgba(255,255,255,0.25); margin-top: 4px; }
+    .empty a { color: #ffcc00; text-decoration: none; cursor: pointer; }
+    .pulse { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #00e676; margin-right: 6px; vertical-align: middle; animation: pulse 2s infinite; }
+    .pulse.off { background: rgba(255,255,255,0.2); animation: none; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.15; } }
+    .footer { margin-top: 8px; font-size: 8px; color: rgba(255,255,255,0.12); text-align: right; }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div class="header">
+      <div class="title"><span class="pulse" id="pulse"></span>Claude HUD</div>
+      <div class="controls no-drag">
+        <div class="dot dot-hide" id="btnHide" title="Ghost mode"></div>
+        <div class="dot dot-close" id="btnClose" title="Quit"></div>
+      </div>
+    </div>
+    <div id="stats">
+      <div class="empty">
+        <div class="headline">Waiting for data…</div>
+        <div>Open Chrome and sign in to claude.ai</div>
+        <div class="hint">Right-click for settings</div>
+      </div>
+    </div>
+    <div class="footer" id="updatedAt"></div>
+  </div>
+
+  <script>
+    const hud = document.getElementById('hud');
+    const pulse = document.getElementById('pulse');
+
+    let extensionConnected = false;
+    let lastDataAt = 0;
+
+    function colorClass(pct) {
+      if (pct >= 80) return 'red';
+      if (pct >= 50) return 'yellow';
+      return 'green';
+    }
+
+    function renderBar(label, pct, sub) {
+      const c = colorClass(pct);
+      return `<div class="stat"><div class="stat-row"><span class="stat-label">${label}</span><span class="stat-value ${c}">${pct}%</span></div><div class="bar-track"><div class="bar-fill bar-${c}" style="width:${pct}%"></div></div>${sub ? `<div class="reset-text">${sub}</div>` : ''}</div>`;
+    }
+
+    function renderEmptyState() {
+      const stats = document.getElementById('stats');
+      if (!extensionConnected) {
+        stats.innerHTML = `
+          <div class="empty">
+            <div class="headline">Extension not connected</div>
+            <div>Install the Chrome extension and make sure Chrome is running.</div>
+            <div class="hint">Right-click for help</div>
+          </div>`;
+      } else {
+        stats.innerHTML = `
+          <div class="empty">
+            <div class="headline">Waiting for data…</div>
+            <div>Sign in to <a id="openClaude">claude.ai</a> in Chrome</div>
+            <div class="hint">Data refreshes every 30s</div>
+          </div>`;
+        const a = document.getElementById('openClaude');
+        if (a) a.addEventListener('click', () => {
+          // Just a hint — extension auto-opens the settings tab
+        });
+      }
+    }
+
+    function render(data) {
+      const stats = document.getElementById('stats');
+      const footer = document.getElementById('updatedAt');
+      if (!data || !data.found) {
+        renderEmptyState();
+        return;
+      }
+      lastDataAt = Date.now();
+      let html = '';
+      if (data.session != null) html += renderBar('Session', data.session, data.session_reset ? `Resets in ${data.session_reset}` : null);
+      if (data.weekly_all != null) { html += '<div class="divider"></div>'; html += renderBar('Weekly · All', data.weekly_all, data.weekly_reset || null); }
+      if (data.weekly_sonnet != null) html += renderBar('Weekly · Sonnet', data.weekly_sonnet, null);
+      if (data.daily_routines) { html += '<div class="divider"></div>'; html += renderBar(`Routines ${data.daily_routines.used}/${data.daily_routines.total}`, data.daily_routines.percent || 0, null); }
+      stats.innerHTML = html || `<div class="empty"><div class="headline">No data found</div><div>Open claude.ai/settings/usage</div></div>`;
+      if (data.timestamp) {
+        const ago = Math.round((Date.now() - data.timestamp) / 1000);
+        footer.textContent = ago < 60 ? `${ago}s ago` : `${Math.round(ago/60)}m ago`;
+      }
+    }
+
+    // Refresh "X s ago" footer every 10s so it stays accurate
+    setInterval(() => {
+      const footer = document.getElementById('updatedAt');
+      if (lastDataAt > 0) {
+        const ago = Math.round((Date.now() - lastDataAt) / 1000);
+        footer.textContent = ago < 60 ? `${ago}s ago` : `${Math.round(ago/60)}m ago`;
+      }
+    }, 10000);
+
+    let hidden = false;
+
+    document.getElementById('btnClose').addEventListener('click', () => window.hudAPI.close());
+    document.getElementById('btnHide').addEventListener('click', () => {
+      hidden = !hidden;
+      hud.classList.toggle('hidden', hidden);
+      hud.classList.remove('hovered');
+    });
+
+    // Right-click anywhere on HUD → native context menu
+    document.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      window.hudAPI.showContextMenu();
+    });
+
+    // Hover from main process cursor polling
+    window.hudAPI.onHoverChange((over) => {
+      if (hidden) return;
+      hud.classList.toggle('hovered', over);
+    });
+
+    // Connection state from main process
+    window.hudAPI.onConnectionChange((connected) => {
+      extensionConnected = connected;
+      pulse.classList.toggle('off', !connected);
+      if (!connected) renderEmptyState();
+    });
+
+    window.hudAPI.onUsageUpdate(render);
+    window.hudAPI.getData();
+    renderEmptyState();
+  </script>
+</body>
+</html>

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Claude HUD — Floating usage meter for Claude.ai</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A tiny floating window that shows your Claude.ai limits as blood bars — so you stop breaking your flow to check how much you've got left.">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Claude HUD — Floating usage meter for Claude.ai">
+  <meta property="og:description" content="A tiny floating window that shows your Claude.ai limits as blood bars. Stop breaking your flow.">
+  <meta property="og:image" content="/og-image.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://claudehud.app">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Claude HUD">
+  <meta name="twitter:description" content="Floating usage meter for Claude.ai. Always on. Always in the corner.">
+  <meta name="twitter:image" content="/og-image.png">
+
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --fg: #f5f5f5;
+      --muted: rgba(245,245,245,0.5);
+      --faint: rgba(245,245,245,0.15);
+      --accent: #ffcc00;
+      --green: #00e676;
+      --red: #ff4040;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { font-family: 'SF Mono', Menlo, monospace; font-size: 0.9em; background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; }
+
+    .container { max-width: 720px; margin: 0 auto; padding: 60px 24px; }
+
+    header { text-align: center; margin-bottom: 60px; }
+    .logo {
+      display: inline-block;
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, #ff9558, #c96a2e);
+      border-radius: 14px;
+      margin-bottom: 24px;
+      position: relative;
+    }
+    .logo::after {
+      content: '';
+      position: absolute;
+      inset: 14px;
+      border: 2px solid rgba(255,255,255,0.9);
+      border-radius: 6px;
+    }
+    h1 {
+      font-size: 44px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 14px;
+      line-height: 1.15;
+    }
+    .tagline {
+      font-size: 19px;
+      color: var(--muted);
+      max-width: 520px;
+      margin: 0 auto 32px;
+    }
+    .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 32px; }
+    .btn {
+      display: inline-block;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 16px;
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); text-decoration: none; }
+    .btn-primary { background: var(--accent); color: #0a0a0a; }
+    .btn-primary:hover { background: #ffd633; }
+    .btn-secondary { background: rgba(255,255,255,0.08); color: var(--fg); border: 1px solid rgba(255,255,255,0.15); }
+    .btn-secondary:hover { background: rgba(255,255,255,0.12); }
+
+    .hero-image {
+      margin: 60px auto;
+      max-width: 100%;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+      display: block;
+    }
+
+    section { margin-bottom: 70px; }
+    h2 {
+      font-size: 26px;
+      font-weight: 700;
+      margin-bottom: 18px;
+      letter-spacing: -0.5px;
+    }
+    p { margin-bottom: 14px; color: rgba(245,245,245,0.85); }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+      margin-top: 24px;
+    }
+    @media (max-width: 560px) { .features { grid-template-columns: 1fr; } }
+    .feature {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 18px 20px;
+    }
+    .feature-title { font-weight: 700; margin-bottom: 6px; color: var(--fg); }
+    .feature-body { font-size: 14px; color: var(--muted); }
+
+    .faq-item { margin-bottom: 20px; }
+    .faq-q { font-weight: 700; margin-bottom: 4px; }
+    .faq-a { color: var(--muted); font-size: 15px; }
+
+    footer {
+      border-top: 1px solid rgba(255,255,255,0.06);
+      padding-top: 30px;
+      margin-top: 50px;
+      font-size: 13px;
+      color: rgba(245,245,245,0.3);
+      text-align: center;
+    }
+    footer a { color: var(--muted); }
+    .tip-jar {
+      margin-top: 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .disclaimer { margin-top: 18px; font-size: 12px; color: rgba(245,245,245,0.2); }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <header>
+    <div class="logo"></div>
+    <h1>Claude HUD</h1>
+    <p class="tagline">A floating widget that shows your Claude.ai usage on your desktop. Stop breaking your flow to check your limits.</p>
+    <div class="cta-row">
+      <a href="https://gumroad.com/l/claude-hud" class="btn btn-primary">Download for Mac</a>
+      <a href="https://github.com/YOUR_USERNAME/claude-hud" class="btn btn-secondary">View on GitHub</a>
+    </div>
+    <div class="tip-jar">Pay what you want · Apple Silicon only · free on GitHub</div>
+  </header>
+
+  <img src="screenshot-hero.png" alt="Claude HUD floating in the corner of a desktop" class="hero-image">
+
+  <section>
+    <h2>The problem</h2>
+    <p>You're mid-conversation with Claude and you wonder: <em>am I about to get rate-limited?</em></p>
+    <p>You open a new tab. Go to settings. Scroll to usage. Stare at the numbers. Close the tab. And by the time you're back in Claude, you've lost your train of thought.</p>
+    <p>Claude HUD makes that moment disappear.</p>
+  </section>
+
+  <section>
+    <h2>What it does</h2>
+    <p>A small floating window sits in the corner of your screen showing four color-coded bars: current session, weekly all models, weekly Sonnet, and daily routine runs. It updates every 30 seconds. Green under 50%, yellow 50–79%, red at 80%+.</p>
+    <p>You glance at it. You go back to work.</p>
+
+    <div class="features">
+      <div class="feature">
+        <div class="feature-title">Always on top</div>
+        <div class="feature-body">Floats over every window on every workspace. 70% opacity when idle, 100% on hover.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-title">Launches at login</div>
+        <div class="feature-body">Set it once. It just shows up whenever your Mac is on.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-title">Drag, resize, hide</div>
+        <div class="feature-body">Put it wherever you want. Ghost mode fades it to 5% opacity when you need focus.</div>
+      </div>
+      <div class="feature">
+        <div class="feature-title">Your data stays local</div>
+        <div class="feature-body">No servers, no analytics, no accounts. Everything happens on your machine over localhost.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>How it works</h2>
+    <p>Claude HUD is two pieces: a <strong>Mac app</strong> (the floating window) and a <strong>Chrome extension</strong> (the data pipe). The extension quietly keeps a tab open at claude.ai/settings/usage, refreshes it every 30 seconds, reads the four usage numbers off the page, and pushes them to the Mac app over localhost port 27843.</p>
+    <p>Nothing ever touches the internet beyond Chrome → claude.ai, which was already happening anyway. Your conversations, prompts, and account data are never read.</p>
+  </section>
+
+  <section>
+    <h2>Requirements</h2>
+    <ul style="list-style: none; padding: 0; color: rgba(245,245,245,0.85);">
+      <li style="margin-bottom: 6px;">↳ Mac running macOS 11+ (Apple Silicon — M1/M2/M3/M4)</li>
+      <li style="margin-bottom: 6px;">↳ Chrome (or any Chromium-based browser)</li>
+      <li style="margin-bottom: 6px;">↳ A Claude.ai account</li>
+    </ul>
+    <p style="margin-top: 14px; color: var(--muted); font-size: 14px;">Intel Macs, Windows, Firefox, and Safari aren't supported yet. Email me if you want them.</p>
+  </section>
+
+  <section>
+    <h2>FAQ</h2>
+
+    <div class="faq-item">
+      <div class="faq-q">Is this affiliated with Anthropic?</div>
+      <div class="faq-a">No. I'm an independent developer who got tired of clicking into settings every 20 minutes. This is a third-party tool.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Can it read my conversations?</div>
+      <div class="faq-a">No. The extension only reads the numeric percentages on claude.ai/settings/usage. It has no access to your chats, prompts, or account.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Why a background Chrome tab?</div>
+      <div class="faq-a">Because Anthropic doesn't publish a usage API. The only way to get the numbers is to scrape the usage page. Manifest V3 doesn't allow truly hidden tabs — but you can pin it so it stays out of your way.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Does this use the Claude API?</div>
+      <div class="faq-a">No API calls. No API key required. It just reads the web page you'd see yourself.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Is it safe to run?</div>
+      <div class="faq-a">The code is on GitHub — read it yourself. The Mac app is unsigned (no $99/yr Apple Developer account on a side project), so macOS will ask you to explicitly allow it on first launch. That's normal.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Will it break if Anthropic changes the page?</div>
+      <div class="faq-a">Possibly. The extension uses regex to find the usage numbers. If Anthropic rewords the page, the numbers won't load until I push an extension update. Email me if that happens.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Why pay-what-you-want?</div>
+      <div class="faq-a">I built it for me. Sharing it costs nothing extra. If it saves you the context-switch and you want to throw a few bucks in, great. If not, also fine.</div>
+    </div>
+  </section>
+
+  <footer>
+    <p>
+      <a href="https://github.com/YOUR_USERNAME/claude-hud">GitHub</a> ·
+      <a href="/privacy">Privacy</a> ·
+      <a href="mailto:hello@claudehud.app">Contact</a>
+    </p>
+    <p class="disclaimer">Claude HUD is an independent product and is not affiliated with, endorsed by, or sponsored by Anthropic. Claude™ is a trademark of Anthropic PBC.</p>
+  </footer>
+
+</div>
+
+</body>
+</html>
