@@ -1,0 +1,5 @@
+**/node_modules/
+widget/dist/
+**/.DS_Store
+*.blockmap
+extension.zip
