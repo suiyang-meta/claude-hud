@@ -41,7 +41,7 @@ function applyAutoStart(enabled) {
 }
 
 function isAutoStartEnabled() {
-  return app.getLoginItemSettings().openAtLogin;
+  return loadPrefs().openAtLogin !== false;
 }
 
 // ---- Window ----
