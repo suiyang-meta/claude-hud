@@ -17,7 +17,7 @@ function loadPrefs() {
       return JSON.parse(fs.readFileSync(PREFS_PATH, 'utf8'));
     }
   } catch (e) {
-    console.log('[Claude HUD] Failed to read prefs:', e.message);
+    console.log('[HUD for Claude] Failed to read prefs:', e.message);
   }
   // First launch defaults: auto-start ON
   return { openAtLogin: true, firstLaunch: true };
@@ -28,7 +28,7 @@ function savePrefs(prefs) {
     fs.mkdirSync(path.dirname(PREFS_PATH), { recursive: true });
     fs.writeFileSync(PREFS_PATH, JSON.stringify(prefs, null, 2));
   } catch (e) {
-    console.log('[Claude HUD] Failed to save prefs:', e.message);
+    console.log('[HUD for Claude] Failed to save prefs:', e.message);
   }
 }
 
@@ -114,11 +114,11 @@ function showContextMenu() {
     },
     { type: 'separator' },
     {
-      label: `Claude HUD v${app.getVersion()}`,
+      label: `HUD for Claude v${app.getVersion()}`,
       enabled: false
     },
     {
-      label: 'Quit Claude HUD',
+      label: 'Quit HUD for Claude',
       click: () => app.quit()
     }
   ];
@@ -149,7 +149,7 @@ function startWebSocketServer() {
       }
     });
   });
-  wss.on('error', (e) => console.log('[Claude HUD] WS error:', e.message));
+  wss.on('error', (e) => console.log('[HUD for Claude] WS error:', e.message));
 }
 
 // ---- IPC handlers ----

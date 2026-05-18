@@ -60,7 +60,7 @@ function scrapeUsageData() {
     }
 
   } catch (e) {
-    console.log('[Claude HUD] Parse error:', e);
+    console.log('[HUD for Claude] Parse error:', e);
   }
 
   return data;
@@ -70,7 +70,7 @@ function sendData() {
   const data = scrapeUsageData();
   if (data.found) {
     chrome.runtime.sendMessage({ type: 'USAGE_DATA', payload: data });
-    console.log('[Claude HUD] Sent usage data:', data);
+    console.log('[HUD for Claude] Sent usage data:', data);
   }
 }
 

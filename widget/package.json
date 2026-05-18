@@ -18,7 +18,7 @@
   },
   "build": {
     "appId": "com.claudehud.app",
-    "productName": "Claude HUD",
+    "productName": "HUD for Claude",
     "icon": "icon.icns",
     "files": [
       "main.js",
@@ -37,7 +37,7 @@
       "gatekeeperAssess": false
     },
     "dmg": {
-      "title": "Claude HUD ${version}",
+      "title": "HUD for Claude ${version}",
       "icon": "icon.icns",
       "contents": [
         { "x": 130, "y": 220, "type": "file" },

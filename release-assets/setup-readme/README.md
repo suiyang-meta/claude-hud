@@ -1,4 +1,4 @@
-# Claude HUD — Quick Start
+# HUD for Claude — Quick Start
 
 A floating widget that shows your Claude.ai usage on your desktop, so you never have to click into settings just to see how much you've got left.
 
@@ -10,7 +10,7 @@ A floating widget that shows your Claude.ai usage on your desktop, so you never 
 
 ```
 claude-hud/
-├── Claude HUD.dmg              ← the Mac app
+├── HUD for Claude.dmg              ← the Mac app
 ├── extension/                  ← the Chrome extension (load this unpacked)
 ├── README.md                   ← you are here
 └── TROUBLESHOOTING.md          ← if something goes wrong
@@ -22,13 +22,13 @@ claude-hud/
 
 ### ① Install the Mac app
 
-1. Double-click `Claude HUD.dmg`
-2. Drag **Claude HUD** into your **Applications** folder
-3. Open your Applications folder and double-click **Claude HUD**
+1. Double-click `HUD for Claude.dmg`
+2. Drag **HUD for Claude** into your **Applications** folder
+3. Open your Applications folder and double-click **HUD for Claude**
 
-**First time you open it, macOS will say "Claude HUD cannot be opened because the developer cannot be verified."** This is normal for apps not distributed through the Mac App Store. To open it anyway:
+**First time you open it, macOS will say "HUD for Claude cannot be opened because the developer cannot be verified."** This is normal for apps not distributed through the Mac App Store. To open it anyway:
 
-→ Right-click (or Control-click) the Claude HUD app → click **Open** → in the dialog, click **Open** again.
+→ Right-click (or Control-click) the HUD for Claude app → click **Open** → in the dialog, click **Open** again.
 
 (You only need to do this the first time.)
 
@@ -36,7 +36,7 @@ You should now see a small floating window in the top-right corner of your scree
 
 ### ② Install the Chrome extension
 
-> **Easy path** — if Claude HUD is already on the Chrome Web Store, just install from there (link will be added once the listing is approved) and skip to step ③.
+> **Easy path** — if HUD for Claude is already on the Chrome Web Store, just install from there (link will be added once the listing is approved) and skip to step ③.
 >
 > **Manual path** (for now, while the Chrome Web Store version is in review):
 
@@ -44,7 +44,7 @@ You should now see a small floating window in the top-right corner of your scree
 2. In the top-right of that page, flip on **Developer mode**
 3. Click **Load unpacked**
 4. Select the `extension/` folder from this zip
-5. The extension should now show up with the Claude HUD icon — done.
+5. The extension should now show up with the HUD for Claude icon — done.
 
 ### ③ Sign in to claude.ai
 
@@ -63,7 +63,7 @@ Within 30 seconds, the "Waiting for data" message on the HUD will be replaced by
 - **Drag it** — grab any non-button part of the widget to move it around.
 - **Resize it** — grab a corner.
 
-By default, Claude HUD launches automatically when you log into your Mac, so it's just always there. You can turn this off in the right-click menu.
+By default, HUD for Claude launches automatically when you log into your Mac, so it's just always there. You can turn this off in the right-click menu.
 
 ---
 
@@ -87,4 +87,4 @@ This is a one-person side project. If something broke or you have ideas — tell
 - Email: hello@claudehud.app
 - Twitter/X: (TBD)
 
-Claude HUD is not affiliated with Anthropic.
+HUD for Claude is not affiliated with Anthropic.
