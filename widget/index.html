@@ -44,6 +44,14 @@
     .pulse.off { background: rgba(255,255,255,0.2); animation: none; }
     @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.15; } }
     .footer { margin-top: 8px; font-size: 8px; color: rgba(255,255,255,0.12); text-align: right; }
+    .extra-toggle { display: none; margin-top: 10px; cursor: pointer; -webkit-app-region: no-drag; }
+    .extra-toggle-row { display: flex; justify-content: space-between; align-items: center; }
+    .extra-toggle-label { font-size: 9px; color: rgba(255,255,255,0.2); text-transform: uppercase; letter-spacing: 0.8px; }
+    .extra-toggle-label:hover { color: rgba(255,255,255,0.4); }
+    .extra-toggle-val { font-size: 9px; color: rgba(255,255,255,0.25); }
+    .extra-body { margin-top: 8px; }
+    .extra-body .bar-track { margin-bottom: 4px; }
+    .extra-sub { font-size: 8px; color: rgba(255,255,255,0.15); }
   </style>
 </head>
 <body>
@@ -63,6 +71,17 @@
       </div>
     </div>
     <div class="footer" id="updatedAt"></div>
+    <div class="extra-toggle" id="extraToggle">
+      <div class="divider"></div>
+      <div class="extra-toggle-row" id="extraToggleRow">
+        <span class="extra-toggle-label" id="extraToggleLabel">▸ Extra usage</span>
+        <span class="extra-toggle-val" id="extraToggleVal"></span>
+      </div>
+      <div class="extra-body" id="extraBody" style="display:none">
+        <div class="bar-track"><div class="bar-fill" id="extraBar" style="width:0%"></div></div>
+        <div class="extra-sub" id="extraSub"></div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -106,6 +125,38 @@
       }
     }
 
+    // --- Extra usage section ---
+    const BASE_HEIGHT = 230;
+    const EXTRA_HEIGHT = 72;
+    let extraExpanded = false;
+    let hasExtra = false;
+
+    function renderExtra(eu) {
+      if (!eu) return;
+      hasExtra = true;
+      const toggle = document.getElementById('extraToggle');
+      const val = document.getElementById('extraToggleVal');
+      const bar = document.getElementById('extraBar');
+      const sub = document.getElementById('extraSub');
+      toggle.style.display = 'block';
+      const c = colorClass(eu.percent);
+      val.textContent = `$${eu.spent.toFixed(0)} / $${eu.limit}`;
+      bar.style.width = eu.percent + '%';
+      bar.className = `bar-fill bar-${c}`;
+      const parts = [];
+      if (eu.balance != null) parts.push(`$${eu.balance.toFixed(2)} left`);
+      if (eu.reset) parts.push(`Resets ${eu.reset}`);
+      sub.textContent = parts.join(' · ');
+    }
+
+    document.getElementById('extraToggleRow').addEventListener('click', () => {
+      if (!hasExtra) return;
+      extraExpanded = !extraExpanded;
+      document.getElementById('extraBody').style.display = extraExpanded ? 'block' : 'none';
+      document.getElementById('extraToggleLabel').textContent = (extraExpanded ? '▾' : '▸') + ' Extra usage';
+      window.hudAPI.resizeWindow(BASE_HEIGHT + (extraExpanded ? EXTRA_HEIGHT : 0));
+    });
+
     function render(data) {
       const stats = document.getElementById('stats');
       const footer = document.getElementById('updatedAt');
@@ -124,6 +175,7 @@
         const ago = Math.round((Date.now() - data.timestamp) / 1000);
         footer.textContent = ago < 60 ? `${ago}s ago` : `${Math.round(ago/60)}m ago`;
       }
+      if (data.extra_usage) renderExtra(data.extra_usage);
     }
 
     // Refresh "X s ago" footer every 10s so it stays accurate

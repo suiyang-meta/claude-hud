@@ -59,6 +59,23 @@ function scrapeUsageData() {
       data.weekly_reset = weeklyResetMatch[1].trim();
     }
 
+    // Parse extra usage (credit spend)
+    const spentMatch = allText.match(/\$([\d.]+)\s+spent/);
+    const limitMatch = allText.match(/\$([\d]+)\s*\n?\s*Monthly spend limit/);
+    const balanceMatch = allText.match(/\$([\d.]+)\s*\n?\s*Current balance/);
+    const extraResetMatch = allText.match(/Resets ((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[^\n]+)/);
+    if (spentMatch && limitMatch) {
+      const spent = parseFloat(spentMatch[1]);
+      const limit = parseInt(limitMatch[1]);
+      data.extra_usage = {
+        spent,
+        limit,
+        balance: balanceMatch ? parseFloat(balanceMatch[1]) : null,
+        reset: extraResetMatch ? extraResetMatch[1].trim() : null,
+        percent: Math.round((spent / limit) * 100)
+      };
+    }
+
   } catch (e) {
     console.log('[HUD for Claude] Parse error:', e);
   }

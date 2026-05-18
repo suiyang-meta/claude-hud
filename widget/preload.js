@@ -9,5 +9,6 @@ contextBridge.exposeInMainWorld('hudAPI', {
   getData: () => ipcRenderer.send('get-data'),
   showContextMenu: () => ipcRenderer.send('show-context-menu'),
   getAutoStart: () => ipcRenderer.invoke('get-autostart'),
-  setAutoStart: (enabled) => ipcRenderer.send('set-autostart', enabled)
+  setAutoStart: (enabled) => ipcRenderer.send('set-autostart', enabled),
+  resizeWindow: (height) => ipcRenderer.send('resize-window', height)
 });

@@ -161,6 +161,12 @@ ipcMain.on('get-data', (event) => {
   event.reply('usage-update', latestData || { found: false });
 });
 ipcMain.on('show-context-menu', () => showContextMenu());
+ipcMain.on('resize-window', (event, height) => {
+  if (mainWindow) {
+    const bounds = mainWindow.getBounds();
+    mainWindow.setBounds({ ...bounds, height: Math.round(height) });
+  }
+});
 ipcMain.handle('get-autostart', () => isAutoStartEnabled());
 ipcMain.on('set-autostart', (event, enabled) => {
   applyAutoStart(enabled);
