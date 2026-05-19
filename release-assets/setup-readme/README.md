@@ -36,9 +36,9 @@ You should now see a small floating window in the top-right corner of your scree
 
 ### ② Install the Chrome extension
 
-> **Easy path** — if HUD for Claude is already on the Chrome Web Store, just install from there (link will be added once the listing is approved) and skip to step ③.
+> **Easy path** — install from the Chrome Web Store: https://chromewebstore.google.com/detail/hud-for-claude/pbboagijhngmapjomijmohfhajapfajl and skip to step ③.
 >
-> **Manual path** (for now, while the Chrome Web Store version is in review):
+> **Manual path** (if you prefer to load unpacked):
 
 1. Open Chrome and go to this URL: `chrome://extensions`
 2. In the top-right of that page, flip on **Developer mode**
