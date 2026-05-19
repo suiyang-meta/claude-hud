@@ -4,6 +4,11 @@ widget/dist/
 *.blockmap
 extension.zip
 assets/screenshots/
-blueprint-v1.md
-blueprint-v1.md
+blueprint-v*.md
+hud-promo-blueprint-v*.md
+ai-kol-*-v*.md
 nodes/
+
+# session 03: internal docs not for public repo
+AGENTS.md
+.claude/
