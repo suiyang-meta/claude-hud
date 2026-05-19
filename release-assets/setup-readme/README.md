@@ -116,7 +116,7 @@ See `TROUBLESHOOTING.md`.
 ## Feedback
 
 This is a one-person side project. If something broke or you have ideas — tell me:
-- Email: hello@claudehud.app
+- Email: metasui1491@gmail.com
 - Twitter/X: (TBD)
 
 HUD for Claude is not affiliated with Anthropic.

@@ -91,7 +91,7 @@ Go to claude.ai/settings/usage in Chrome. Do the numbers on that page match the 
 
 - **If they match**: everything's working.
 - **If they don't match**: the extension's data is stale — click the extension icon in Chrome, which will force a fresh scrape.
-- **If the page doesn't show numbers at all**: Anthropic may have changed the page layout. In that case the extension needs an update. Let me know: hello@claudehud.app
+- **If the page doesn't show numbers at all**: Anthropic may have changed the page layout. In that case the extension needs an update. Let me know: metasui1491@gmail.com
 
 ## How do I completely uninstall HUD for Claude?
 
@@ -115,7 +115,7 @@ The installer un-registers the Launch-at-Login entry automatically on uninstall 
 
 ## Still stuck?
 
-Email hello@claudehud.app with:
+Email metasui1491@gmail.com with:
 - What you tried
 - A screenshot of the HUD (whatever state it's in)
 - What OS version you're on (Mac: Apple menu → About This Mac; Windows: Settings → System → About)
