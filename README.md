@@ -10,19 +10,17 @@ Landing page: [suiyang-meta.github.io/claude-hud](https://suiyang-meta.github.io
 
 ## Two ways in
 
-### 👋 Just want to use it?
+This project has two distinct entry points — pick whichever matches your time/money trade-off.
 
-Grab the prebuilt installer — no build tools needed:
+### 👋 Want a prebuilt installer? → Gumroad
 
-- **[Releases](https://github.com/suiyang-meta/claude-hud/releases/latest)** — direct download of `.dmg` (Mac) or `.exe` (Windows), plus the Chrome extension folder
-- **[Gumroad](https://metasui.gumroad.com/l/evlikv)** — pay-what-you-want bundle, same files
-- **[Chrome Web Store](https://chromewebstore.google.com/detail/hud-for-claude/pbboagijhngmapjomijmohfhajapfajl)** — the extension half
+[**metasui.gumroad.com/l/evlikv**](https://metasui.gumroad.com/l/evlikv) — pay-what-you-want bundles for Mac (Apple Silicon `.dmg`) and Windows (x64 `.exe`), with the Chrome extension and setup README bundled in. No build tools required. Setup is ~2 minutes.
 
-Setup is ~2 minutes. Install instructions live in [`release-assets/setup-readme/README.md`](release-assets/setup-readme/README.md) (also bundled inside every download).
+The Chrome extension half is also available free on the [**Chrome Web Store**](https://chromewebstore.google.com/detail/hud-for-claude/pbboagijhngmapjomijmohfhajapfajl) — install that once you have the desktop app from Gumroad.
 
-### 🛠️ Want to build it yourself?
+### 🛠️ Want it free? → Build from source
 
-This is the source. You'll need Node 18+ and npm.
+This repo is the source. You'll need Node 18+ and npm.
 
 ```bash
 git clone https://github.com/suiyang-meta/claude-hud.git
@@ -38,7 +36,11 @@ npm run build        # → both at once
 npm start
 ```
 
-The Chrome extension lives in [`extension/`](extension/). Load it via `chrome://extensions` → Developer mode → Load unpacked.
+The Chrome extension lives in [`extension/`](extension/). Load it via `chrome://extensions` → Developer mode → Load unpacked, or just grab it from the Chrome Web Store linked above.
+
+### Why no prebuilt downloads here on GitHub?
+
+Deliberate. The Releases page intentionally doesn't attach `.dmg` / `.exe` binaries — that would collapse the time/money distinction above. If you want it packaged, Gumroad packages it (and lets you decide what it's worth, including $0 if you went there and saw the suggested price). If you want it free, the source is right here and the build is two commands. The Chrome extension stays free on the Web Store either way.
 
 ---
 

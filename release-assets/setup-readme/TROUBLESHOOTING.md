@@ -64,7 +64,7 @@ Same root cause as SmartScreen — unsigned indie installer. If Defender quarant
 2. Find the HUD for Claude entry → Actions → Restore
 3. Add an exclusion if you want to skip future scans: Windows Security → Virus & threat protection → Manage settings → Exclusions → Add an exclusion → File → pick the installer or the installed `HUD for Claude.exe`
 
-Or grab the file again from GitHub Releases / Gumroad — Defender sometimes lets it through on a fresh download once it's seen enough downloads worldwide.
+Or redownload the zip from Gumroad — Defender sometimes lets it through on a fresh download once it's seen enough downloads worldwide.
 
 ## Windows Firewall blocks port 27843 / extension not connected on Windows
 
