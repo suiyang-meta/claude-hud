@@ -8,16 +8,23 @@ A floating widget that shows your Claude.ai usage on your desktop, so you never 
 
 ## What's in this zip
 
+You'll have downloaded one of two zips:
+
+**Mac zip (`HUD-for-Claude-Mac.zip`):**
 ```
-claude-hud/
 ├── HUD for Claude.dmg              ← the Mac app (Apple Silicon)
-├── HUD for Claude Setup.exe        ← the Windows installer (x64)
-├── extension/                      ← the Chrome extension (load this unpacked)
+├── extension/                      ← Chrome extension — FALLBACK ONLY (use Web Store first, see step ②)
 ├── README.md                       ← you are here
 └── TROUBLESHOOTING.md              ← if something goes wrong
 ```
 
-You only need the installer for your platform — `.dmg` for Mac, `.exe` for Windows.
+**Windows zip (`HUD-for-Claude-Windows.zip`):**
+```
+├── HUD for Claude Setup 1.2.0.exe  ← the Windows installer (x64)
+├── extension/                      ← Chrome extension — FALLBACK ONLY (use Web Store first, see step ②)
+├── README.md                       ← you are here
+└── TROUBLESHOOTING.md              ← if something goes wrong
+```
 
 ---
 
@@ -48,15 +55,24 @@ Either way — you should now see a small floating window in the top-right corne
 
 ### ② Install the Chrome extension
 
-> **Easy path** — install from the Chrome Web Store: https://chromewebstore.google.com/detail/hud-for-claude/pbboagijhngmapjomijmohfhajapfajl and skip to step ③.
->
-> **Manual path** (if you prefer to load unpacked):
+**Recommended path — install from the Chrome Web Store:**
+
+→ Open this link in Chrome: **https://chromewebstore.google.com/detail/hud-for-claude/pbboagijhngmapjomijmohfhajapfajl**
+→ Click **Add to Chrome** → **Add extension** → Done. Skip to step ③.
+
+---
+
+**Fallback path — only use this if the Web Store listing is unavailable** (e.g. the extension got delisted, you're offline, or your network blocks the Web Store):
+
+The `extension/` folder in this zip is a local copy of the same extension. You can load it manually:
 
 1. Open Chrome and go to this URL: `chrome://extensions`
 2. In the top-right of that page, flip on **Developer mode**
 3. Click **Load unpacked**
 4. Select the `extension/` folder from this zip
 5. The extension should now show up with the HUD for Claude icon — done.
+
+⚠️ The Web Store version is the one that gets updates automatically. If you load the local copy, you'll need to redownload the zip later to get the latest version.
 
 ### ③ Sign in to claude.ai
 
