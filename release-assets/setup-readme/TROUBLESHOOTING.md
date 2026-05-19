@@ -24,15 +24,23 @@ The desktop app can't hear the Chrome extension. Make sure:
 
 ## macOS says "HUD for Claude is damaged and can't be opened"
 
-This can happen when the app isn't code-signed (which, for a side project distributed via Gumroad/GitHub, it usually isn't).
+**This is the most common issue on modern macOS (Sonoma 14+, Sequoia 15+).** The app isn't actually damaged — macOS just refuses to run unsigned apps downloaded from the internet by default, and on newer versions it shows this scary "damaged" wording instead of the older "developer cannot be verified" dialog with a right-click → Open workaround.
 
-Fix: open Terminal and paste this command, then press Enter:
+**Fix (takes 10 seconds):**
+
+1. Make sure you've already dragged **HUD for Claude** into your **Applications** folder
+2. Open **Terminal** (Cmd+Space → type "terminal" → Enter)
+3. Paste this command and press Enter:
 
 ```bash
-xattr -cr /Applications/Claude\ HUD.app
+xattr -cr "/Applications/HUD for Claude.app"
 ```
 
-Then open HUD for Claude normally (right-click → Open the first time).
+4. Now double-click HUD for Claude in Applications. It opens normally.
+
+**What that command does (plain English):** macOS tags every file downloaded from a browser with an invisible "I came from the internet" sticker. For unsigned apps, the sticker tells macOS to block the app. The `xattr -cr` command peels that sticker off. The app itself is untouched.
+
+If the command says "No such file" — double-check the app is actually at `/Applications/HUD for Claude.app` (run `ls /Applications/ | grep -i hud` in Terminal to find it).
 
 ## macOS says "HUD for Claude cannot be opened because the developer cannot be verified"
 

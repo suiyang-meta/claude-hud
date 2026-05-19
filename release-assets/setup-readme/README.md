@@ -36,13 +36,17 @@ You'll have downloaded one of two zips:
 
 1. Double-click `HUD for Claude.dmg`
 2. Drag **HUD for Claude** into your **Applications** folder
-3. Open your Applications folder and double-click **HUD for Claude**
+3. **Before you open it, run this one command in Terminal** (Cmd+Space → type "terminal" → Enter, then paste):
 
-**First time you open it, macOS will say "HUD for Claude cannot be opened because the developer cannot be verified."** This is normal for apps not distributed through the Mac App Store. To open it anyway:
+   ```bash
+   xattr -cr "/Applications/HUD for Claude.app"
+   ```
 
-→ Right-click (or Control-click) the HUD for Claude app → click **Open** → in the dialog, click **Open** again.
+4. Now double-click **HUD for Claude** in Applications.
 
-(You only need to do this the first time.)
+**Why the Terminal step?** macOS blocks unsigned apps downloaded from a browser by default. On newer macOS (Sonoma/Sequoia) you'll see a "HUD for Claude is damaged" dialog with no obvious way out; on older macOS you'll see "developer cannot be verified" and can right-click → Open instead. The `xattr -cr` command handles both cases up front — it just peels off the "downloaded from internet" marker macOS attaches to fresh downloads. You only need to do it once. The app itself is untouched.
+
+(If you skipped step 3 and got the "damaged" or "developer cannot be verified" dialog — close it, run the command, then try opening the app again.)
 
 **On Windows (x64):**
 

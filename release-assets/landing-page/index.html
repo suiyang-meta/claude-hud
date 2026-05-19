@@ -325,7 +325,7 @@
 
     <div class="faq-item">
       <div class="faq-q">Is it safe to run?</div>
-      <div class="faq-a">The code is on GitHub — read it yourself. The desktop app is unsigned on both platforms (no $99/yr Apple Developer account, no $200+/yr Microsoft cert on a side project), so the OS will ask you to explicitly allow it on first launch — right-click → Open on Mac, "More info → Run anyway" on Windows SmartScreen. That's normal.</div>
+      <div class="faq-a">The code is on GitHub — read it yourself. The desktop app is unsigned on both platforms (no $99/yr Apple Developer account, no $200+/yr Microsoft cert on a side project), so on first launch you'll need to explicitly allow it: a one-line <code>xattr -cr</code> Terminal command on Mac (macOS otherwise refuses to run unsigned apps; the included README walks you through it), or "More info → Run anyway" through Windows SmartScreen. That's normal.</div>
     </div>
 
     <div class="faq-item">
