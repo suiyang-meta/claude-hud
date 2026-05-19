@@ -7,7 +7,9 @@
   "license": "MIT",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --mac dmg --arm64"
+    "build": "electron-builder --mac dmg --arm64 --win nsis --x64",
+    "build:mac": "electron-builder --mac dmg --arm64",
+    "build:win": "electron-builder --win nsis --x64"
   },
   "dependencies": {
     "ws": "^8.16.0"
@@ -19,7 +21,6 @@
   "build": {
     "appId": "com.claudehud.app",
     "productName": "HUD for Claude",
-    "icon": "icon.icns",
     "files": [
       "main.js",
       "preload.js",
@@ -27,6 +28,7 @@
       "node_modules/**/*"
     ],
     "mac": {
+      "icon": "icon.icns",
       "category": "public.app-category.productivity",
       "target": {
         "target": "dmg",
@@ -35,6 +37,21 @@
       "identity": null,
       "hardenedRuntime": false,
       "gatekeeperAssess": false
+    },
+    "win": {
+      "icon": "icon.png",
+      "target": {
+        "target": "nsis",
+        "arch": "x64"
+      }
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "HUD for Claude"
     },
     "dmg": {
       "title": "HUD for Claude ${version}",
