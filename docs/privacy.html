@@ -34,7 +34,7 @@
 <h1>HUD for Claude — Privacy Policy</h1>
 <div class="updated">Last updated: April 16, 2026</div>
 
-<p>HUD for Claude is a two-part product: a Chrome browser extension and a macOS desktop app. Both are built by a single independent developer. This policy explains exactly what data is read, where it goes, and what is stored.</p>
+<p>HUD for Claude is a two-part product: a Chrome browser extension and a desktop app (macOS or Windows). Both are built by a single independent developer. This policy explains exactly what data is read, where it goes, and what is stored.</p>
 
 <h2>Short version</h2>
 <p>Your data never leaves your computer. There are no servers, no analytics, no accounts, no tracking. The extension reads four public usage numbers from <code>claude.ai/settings/usage</code> and sends them to the desktop app running on your own machine via localhost. That's it.</p>
@@ -58,7 +58,7 @@
 <h2>What is stored</h2>
 <ul>
   <li><strong>In the browser:</strong> The latest usage numbers are cached in <code>chrome.storage.local</code> so the extension popup can display them instantly when clicked. This cache is overwritten every 30 seconds and never leaves your browser profile.</li>
-  <li><strong>On your Mac:</strong> The desktop app stores a tiny preferences file (your "Launch at Login" choice) in the macOS application support directory. No usage data is persisted to disk.</li>
+  <li><strong>On your computer:</strong> The desktop app stores a tiny preferences file (your "Launch at Login" choice) in the OS's standard app-data directory — <code>~/Library/Application Support/HUD for Claude/</code> on Mac, <code>%APPDATA%\HUD for Claude\</code> on Windows. No usage data is persisted to disk.</li>
 </ul>
 
 <h2>Third parties</h2>

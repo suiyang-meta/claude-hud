@@ -191,10 +191,10 @@
     <h1>HUD for Claude</h1>
     <p class="tagline">A floating widget that shows your Claude.ai usage on your desktop. Stop breaking your flow to check your limits.</p>
     <div class="cta-row">
-      <a href="https://metasui.gumroad.com/l/evlikv" class="btn btn-primary">Download for Mac</a>
+      <a href="https://metasui.gumroad.com/l/evlikv" class="btn btn-primary">Download</a>
       <a href="https://github.com/suiyang-meta/claude-hud" class="btn btn-secondary">View on GitHub</a>
     </div>
-    <div class="tip-jar">Pay what you want · Apple Silicon only · free on GitHub</div>
+    <div class="tip-jar">Pay what you want · Mac (Apple Silicon) + Windows (x64) · free on GitHub</div>
   </header>
 
   <div class="hud-mockup-wrap">
@@ -271,7 +271,7 @@
       </div>
       <div class="feature">
         <div class="feature-title">Launches at login</div>
-        <div class="feature-body">Set it once. It just shows up whenever your Mac is on.</div>
+        <div class="feature-body">Set it once. It just shows up whenever your computer is on — Mac or Windows.</div>
       </div>
       <div class="feature">
         <div class="feature-title">Drag, resize, hide</div>
@@ -286,18 +286,18 @@
 
   <section>
     <h2>How it works</h2>
-    <p>HUD for Claude is two pieces: a <strong>Mac app</strong> (the floating window) and a <strong>Chrome extension</strong> (the data pipe). The extension quietly keeps a tab open at claude.ai/settings/usage, refreshes it every 30 seconds, reads the four usage numbers off the page, and pushes them to the Mac app over localhost port 27843.</p>
+    <p>HUD for Claude is two pieces: a <strong>desktop app</strong> (the floating window — Mac or Windows) and a <strong>Chrome extension</strong> (the data pipe). The extension quietly keeps a tab open at claude.ai/settings/usage, refreshes it every 30 seconds, reads the four usage numbers off the page, and pushes them to the desktop app over localhost port 27843.</p>
     <p>Nothing ever touches the internet beyond Chrome → claude.ai, which was already happening anyway. Your conversations, prompts, and account data are never read.</p>
   </section>
 
   <section>
     <h2>Requirements</h2>
     <ul style="list-style: none; padding: 0; color: rgba(245,245,245,0.85);">
-      <li style="margin-bottom: 6px;">↳ Mac running macOS 11+ (Apple Silicon — M1/M2/M3/M4)</li>
+      <li style="margin-bottom: 6px;">↳ Mac running macOS 11+ on Apple Silicon (M1/M2/M3/M4) <em>or</em> Windows 10/11 (x64)</li>
       <li style="margin-bottom: 6px;">↳ Chrome (or any Chromium-based browser)</li>
       <li style="margin-bottom: 6px;">↳ A Claude.ai account</li>
     </ul>
-    <p style="margin-top: 14px; color: var(--muted); font-size: 14px;">Intel Macs, Windows, Firefox, and Safari aren't supported yet. Email me if you want them.</p>
+    <p style="margin-top: 14px; color: var(--muted); font-size: 14px;">Intel Macs, Linux, Firefox, and Safari aren't supported yet. Email me if you want them.</p>
   </section>
 
   <section>
@@ -325,7 +325,7 @@
 
     <div class="faq-item">
       <div class="faq-q">Is it safe to run?</div>
-      <div class="faq-a">The code is on GitHub — read it yourself. The Mac app is unsigned (no $99/yr Apple Developer account on a side project), so macOS will ask you to explicitly allow it on first launch. That's normal.</div>
+      <div class="faq-a">The code is on GitHub — read it yourself. The desktop app is unsigned on both platforms (no $99/yr Apple Developer account, no $200+/yr Microsoft cert on a side project), so the OS will ask you to explicitly allow it on first launch — right-click → Open on Mac, "More info → Run anyway" on Windows SmartScreen. That's normal.</div>
     </div>
 
     <div class="faq-item">

@@ -10,17 +10,22 @@ A floating widget that shows your Claude.ai usage on your desktop, so you never 
 
 ```
 claude-hud/
-├── HUD for Claude.dmg              ← the Mac app
-├── extension/                  ← the Chrome extension (load this unpacked)
-├── README.md                   ← you are here
-└── TROUBLESHOOTING.md          ← if something goes wrong
+├── HUD for Claude.dmg              ← the Mac app (Apple Silicon)
+├── HUD for Claude Setup.exe        ← the Windows installer (x64)
+├── extension/                      ← the Chrome extension (load this unpacked)
+├── README.md                       ← you are here
+└── TROUBLESHOOTING.md              ← if something goes wrong
 ```
+
+You only need the installer for your platform — `.dmg` for Mac, `.exe` for Windows.
 
 ---
 
 ## Install — 3 steps, about 2 minutes
 
-### ① Install the Mac app
+### ① Install the desktop app
+
+**On Mac (Apple Silicon):**
 
 1. Double-click `HUD for Claude.dmg`
 2. Drag **HUD for Claude** into your **Applications** folder
@@ -32,7 +37,14 @@ claude-hud/
 
 (You only need to do this the first time.)
 
-You should now see a small floating window in the top-right corner of your screen saying "Waiting for data." That's the HUD. Keep it open.
+**On Windows (x64):**
+
+1. Double-click `HUD for Claude Setup 1.2.0.exe`
+2. **Windows SmartScreen will pop up saying "Windows protected your PC"** — this is normal for apps not signed with a paid certificate. Click **More info** → **Run anyway**.
+3. The installer wizard opens. Pick install location if you want (default works), keep "Desktop shortcut" and "Start Menu shortcut" checked, click **Install**.
+4. After install, HUD for Claude launches automatically from the Start Menu / desktop shortcut.
+
+Either way — you should now see a small floating window in the top-right corner of your screen saying "Waiting for data." That's the HUD. Keep it open.
 
 ### ② Install the Chrome extension
 
@@ -63,13 +75,13 @@ Within 30 seconds, the "Waiting for data" message on the HUD will be replaced by
 - **Drag it** — grab any non-button part of the widget to move it around.
 - **Resize it** — grab a corner.
 
-By default, HUD for Claude launches automatically when you log into your Mac, so it's just always there. You can turn this off in the right-click menu.
+By default, HUD for Claude launches automatically when you log into your computer (Mac and Windows both), so it's just always there. You can turn this off in the right-click menu.
 
 ---
 
 ## How it actually works (if you're curious)
 
-The Chrome extension quietly keeps a tab open at claude.ai/settings/usage, refreshes it every 30 seconds, and reads the four usage percentages off that page. It pushes those numbers to the Mac app over localhost (port 27843 — your own computer, nothing touches the internet). The Mac app draws them as color-coded bars.
+The Chrome extension quietly keeps a tab open at claude.ai/settings/usage, refreshes it every 30 seconds, and reads the four usage percentages off that page. It pushes those numbers to the desktop app over localhost (port 27843 — your own computer, nothing touches the internet). The desktop app draws them as color-coded bars.
 
 Your data never leaves your computer.
 
