@@ -12,3 +12,7 @@ nodes/
 # session 03: internal docs not for public repo
 AGENTS.md
 .claude/
+
+# session 05: internal launch work product (含商业策略 reasoning + 定价心理学 + 上架准备 meta-instructions)
+release-assets/chrome-web-store/
+release-assets/gumroad/
