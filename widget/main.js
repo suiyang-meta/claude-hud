@@ -106,7 +106,7 @@ function showContextMenu() {
     { type: 'separator' },
     {
       label: 'Open claude.ai Usage Page',
-      click: () => shell.openExternal('https://claude.ai/settings/usage')
+      click: () => shell.openExternal('https://claude.ai/new#settings/usage')
     },
     {
       label: 'Reload Widget',

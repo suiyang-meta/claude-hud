@@ -101,7 +101,7 @@ By default, HUD for Claude launches automatically when you log into your compute
 
 ## How it actually works (if you're curious)
 
-The Chrome extension quietly keeps a tab open at claude.ai/settings/usage, refreshes it every 30 seconds, and reads the four usage percentages off that page. It pushes those numbers to the desktop app over localhost (port 27843 — your own computer, nothing touches the internet). The desktop app draws them as color-coded bars.
+The Chrome extension quietly keeps a tab open on your claude.ai usage page, refreshes it every 30 seconds, and reads the four usage percentages off that page. It pushes those numbers to the desktop app over localhost (port 27843 — your own computer, nothing touches the internet). The desktop app draws them as color-coded bars.
 
 Your data never leaves your computer.
 

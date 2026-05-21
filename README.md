@@ -48,10 +48,10 @@ Deliberate. The Releases page intentionally doesn't attach `.dmg` / `.exe` binar
 
 Two pieces talk to each other on `localhost`:
 
-1. **Chrome extension** quietly keeps a tab open at `claude.ai/settings/usage`, refreshes it every 30 seconds, and scrapes the four usage percentages off the rendered page.
+1. **Chrome extension** quietly keeps a tab open on your claude.ai usage page, refreshes it every 30 seconds, and scrapes the four usage percentages off the rendered page.
 2. **Desktop widget** (Electron) runs a local WebSocket server on port 27843 and receives those numbers — then draws them as color-coded bars (green &lt;50%, yellow 50–79%, red 80%+).
 
-Nothing leaves your machine. No accounts, no servers, no analytics, no telemetry. The extension can read only `claude.ai/settings/usage` — not your conversations.
+Nothing leaves your machine. No accounts, no servers, no analytics, no telemetry. The extension can read only your claude.ai usage page — not your conversations.
 
 Full privacy policy: [release-assets/privacy/privacy-policy.html](release-assets/privacy/privacy-policy.html) (or live at [suiyang-meta.github.io/claude-hud/privacy](https://suiyang-meta.github.io/claude-hud/privacy)).
 

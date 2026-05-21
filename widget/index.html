@@ -170,7 +170,7 @@
       if (data.weekly_all != null) { html += '<div class="divider"></div>'; html += renderBar('Weekly · All', data.weekly_all, data.weekly_reset || null); }
       if (data.weekly_sonnet != null) html += renderBar('Weekly · Sonnet', data.weekly_sonnet, null);
       if (data.daily_routines) { html += '<div class="divider"></div>'; html += renderBar(`Routines ${data.daily_routines.used}/${data.daily_routines.total}`, data.daily_routines.percent || 0, null); }
-      stats.innerHTML = html || `<div class="empty"><div class="headline">No data found</div><div>Open claude.ai/settings/usage</div></div>`;
+      stats.innerHTML = html || `<div class="empty"><div class="headline">No data found</div><div>Open your claude.ai usage page</div></div>`;
       if (data.timestamp) {
         const ago = Math.round((Date.now() - data.timestamp) / 1000);
         footer.textContent = ago < 60 ? `${ago}s ago` : `${Math.round(ago/60)}m ago`;

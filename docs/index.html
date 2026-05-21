@@ -286,7 +286,7 @@
 
   <section>
     <h2>How it works</h2>
-    <p>HUD for Claude is two pieces: a <strong>desktop app</strong> (the floating window — Mac or Windows) and a <strong>Chrome extension</strong> (the data pipe). The extension quietly keeps a tab open at claude.ai/settings/usage, refreshes it every 30 seconds, reads the four usage numbers off the page, and pushes them to the desktop app over localhost port 27843.</p>
+    <p>HUD for Claude is two pieces: a <strong>desktop app</strong> (the floating window — Mac or Windows) and a <strong>Chrome extension</strong> (the data pipe). The extension quietly keeps a tab open on your claude.ai usage page, refreshes it every 30 seconds, reads the four usage numbers off the page, and pushes them to the desktop app over localhost port 27843.</p>
     <p>Nothing ever touches the internet beyond Chrome → claude.ai, which was already happening anyway. Your conversations, prompts, and account data are never read.</p>
   </section>
 
@@ -310,7 +310,7 @@
 
     <div class="faq-item">
       <div class="faq-q">Can it read my conversations?</div>
-      <div class="faq-a">No. The extension only reads the numeric percentages on claude.ai/settings/usage. It has no access to your chats, prompts, or account.</div>
+      <div class="faq-a">No. The extension only reads the numeric percentages on your claude.ai usage page. It has no access to your chats, prompts, or account.</div>
     </div>
 
     <div class="faq-item">

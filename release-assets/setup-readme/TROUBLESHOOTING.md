@@ -79,7 +79,7 @@ If you accidentally clicked Cancel:
 3. Browse to `HUD for Claude.exe` (default install path: `%LOCALAPPDATA%\Programs\HUD for Claude\`) and add it
 4. Make sure **Private** is checked
 
-## I see a Chrome tab at claude.ai/settings/usage I didn't open
+## I see a Chrome tab on my claude.ai usage page I didn't open
 
 Yes — that's the extension doing its job. It keeps that tab open and refreshes it every 30 seconds to scrape the usage numbers. Don't close it. If you accidentally close it, the extension will reopen it within 30 seconds.
 
@@ -87,7 +87,7 @@ If you really don't want to see the tab, you can pin it (right-click tab → Pin
 
 ## The numbers look wrong / the bars don't match what claude.ai actually shows
 
-Go to claude.ai/settings/usage in Chrome. Do the numbers on that page match the bars on your HUD?
+Open your claude.ai usage page in Chrome (Settings → Usage). Do the numbers on that page match the bars on your HUD?
 
 - **If they match**: everything's working.
 - **If they don't match**: the extension's data is stale — click the extension icon in Chrome, which will force a fresh scrape.
