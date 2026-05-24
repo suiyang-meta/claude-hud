@@ -1,6 +1,6 @@
 {
   "name": "claude-hud",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "description": "Floating desktop widget that shows your Claude.ai usage as blood bars in real time.",
   "main": "main.js",
   "author": "Sui",
@@ -12,6 +12,7 @@
     "build:win": "electron-builder --win nsis --x64"
   },
   "dependencies": {
+    "extract-zip": "^2.0.1",
     "ws": "^8.16.0"
   },
   "devDependencies": {
@@ -25,6 +26,8 @@
       "main.js",
       "preload.js",
       "index.html",
+      "pet/**/*",
+      "assets/**/*",
       "node_modules/**/*"
     ],
     "mac": {
@@ -57,8 +60,17 @@
       "title": "HUD for Claude ${version}",
       "icon": "icon.icns",
       "contents": [
-        { "x": 130, "y": 220, "type": "file" },
-        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+        {
+          "x": 130,
+          "y": 220,
+          "type": "file"
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     }
   }

@@ -1,0 +1,7 @@
+{
+  "id": "claw-d",
+  "displayName": "Claw'd",
+  "description": "A tiny coral-orange blocky crab companion. Bundled as HUD for Claude's default pet. Created by krrsantan, distributed via codex-pets.net (https://codex-pets.net/#/pets/claw-d).",
+  "spritesheetPath": "spritesheet.webp",
+  "kind": "animal"
+}

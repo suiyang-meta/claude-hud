@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; }
+    html, body {
+      background: transparent;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    body { display: flex; align-items: center; justify-content: center; }
+    #btn {
+      width: 26px;
+      height: 26px;
+      cursor: pointer;
+      opacity: 0;
+      transform: scale(0.6);                                /* shrunken when hidden */
+      transform-origin: center center;
+      pointer-events: none;
+      background-color: transparent;                        /* explicit: never any default bg */
+      background-repeat: no-repeat;
+      background-position: 0 0;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      border-radius: 6px;
+      /* Spring easing for a pop-in/pop-out feel both on entrance and exit */
+      transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    body.revealed #btn {
+      opacity: 0.55;
+      transform: scale(1);
+      pointer-events: auto;
+    }
+    body.revealed #btn:hover {
+      opacity: 0.95;
+      transform: scale(1.12);
+    }
+    /* .empty = no active pet. Still revealable on hover (subtle "+" placeholder)
+       so the user can click it to open the library and pick a pet. Hidden when
+       not hovered, same as normal state. */
+    #btn.empty {
+      background-color: transparent;
+      background-image: none;
+      color: rgba(255, 255, 255, 0.55);
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 18px;
+      font-weight: 200;
+      line-height: 26px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="btn" class="empty">+</div>
+  <script src="button-renderer.js"></script>
+</body>
+</html>
