@@ -3,7 +3,7 @@
 Version history for the HUD for Claude Chrome extension — the component
 published to the Chrome Web Store. The desktop app is versioned separately.
 
-## [1.4.0] - 2026-05-21
+## [1.4.0] - 2026-05-24
 
 ### Changed
 
@@ -26,7 +26,7 @@ published to the Chrome Web Store. The desktop app is versioned separately.
   `/settings/usage` page. 1.4.0 supersedes 1.3.1 — users updating from 1.2.0
   skip straight to 1.4.0.
 
-## [1.3.1] - 2026-05-21
+## [1.3.1] - 2026-05-24
 
 ### Fixed
 
