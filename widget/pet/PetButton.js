@@ -102,8 +102,28 @@ class PetButton {
   _reposition() {
     if (!this.window || this.window.isDestroyed() || !this.hudWindow) return;
     const hudBounds = this.hudWindow.getBounds();
-    const wa = screen.getDisplayMatching(hudBounds).workArea;
-    this.window.setBounds(computeButtonBounds(hudBounds, wa));
+    const display = screen.getDisplayMatching(hudBounds);
+
+    // Same Mac multi-display transparent-backing bug as PetWindow: recreate
+    // the button window after crossing to a new display so its transparent
+    // composite is reborn on the new screen.
+    if (this._lastDisplayId !== undefined && display.id !== this._lastDisplayId) {
+      this._lastDisplayId = display.id;
+      const savedHover = this._pendingHover;
+      const savedPet = this._pendingActivePet;
+      if (this._hideTimer) { clearTimeout(this._hideTimer); this._hideTimer = null; }
+      if (this.window && !this.window.isDestroyed()) this.window.close();
+      this.window = null;
+      this._rendererReady = false;
+      this._ensureWindow();
+      this._pendingHover = savedHover;
+      this._pendingActivePet = savedPet;
+      // Renderer's 'button:ready' will flush both pending states.
+      return;
+    }
+    this._lastDisplayId = display.id;
+
+    this.window.setBounds(computeButtonBounds(hudBounds, display.workArea));
   }
 
   setActivePet(pet) {
