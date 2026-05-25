@@ -24,7 +24,9 @@ const DRAG_DEBOUNCE_MS = 40;
 const OVERLAP_PX = 2;                    // pet visual edge overlaps HUD edge by 2px
 // Drag debounce intentionally short so the pet snaps back to baseline within
 // ~100ms of the user releasing the HUD. Longer windows feel like "linger".
-const DRAG_END_MS = 50;                  // no move event for this long = drag stopped
+// Match DRAG_HOLD_MS - small buffer. Below ~150ms, normal slow-drag pauses
+// get misread as "drag released" and the pet flicks to baseline mid-drag.
+const DRAG_END_MS = 200;
 
 // Pet's visual rectangle inside the window (canvas is bottom-centered).
 const PET_LEFT   = SIDE_BUFFER;                          // 32

@@ -40,7 +40,12 @@ const REVIEW_MAX_MS    = 60 * 60 * 1000;
 const REVIEW_BUBBLE_MS = 2500;
 const REVIEW_HOLD_MS   = 4000;
 const POKE_HOLD_MS     = 1200;
-const DRAG_HOLD_MS     = 50;           // very short so drag-stop snaps back ≤90ms
+// Hold long enough to cover natural pauses inside a slow drag (macOS doesn't
+// emit move events continuously when the user inches the window carefully —
+// gaps of 100-180ms are common). If override expires inside one of those
+// gaps, _tick fires the comfy shuffle and the pet visibly flicks to
+// idle/wave/jump — looks like "random jumping" during drag.
+const DRAG_HOLD_MS     = 250;
 const FAIL_FLASH_MS    = 1500;
 
 function pickWeighted(items) {
