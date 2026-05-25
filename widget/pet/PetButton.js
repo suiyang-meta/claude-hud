@@ -85,6 +85,9 @@ class PetButton {
     this.window.setOpacity(0);
     this.window.loadFile(path.join(__dirname, 'button-renderer.html'));
 
+    // Track birth display for debounced display-change recreate.
+    this._stableDisplayId = screen.getDisplayMatching(hudBounds).id;
+
     this.window.on('closed', () => {
       this.window = null;
       this._rendererReady = false;
@@ -95,7 +98,15 @@ class PetButton {
     this.hudWindow = hudWindow;
     this._ensureWindow();
     if (!hudWindow) return;
-    hudWindow.on('move', () => this._reposition());
+    hudWindow.on('move', () => {
+      this._reposition();
+      // Debounced display-change check (single-shot after user stops dragging)
+      if (this._dragEndTimer) clearTimeout(this._dragEndTimer);
+      this._dragEndTimer = setTimeout(() => {
+        this._dragEndTimer = null;
+        this._maybeRecreateForNewDisplay();
+      }, 80);
+    });
     hudWindow.on('resize', () => this._reposition());
   }
 
@@ -103,18 +114,27 @@ class PetButton {
     if (!this.window || this.window.isDestroyed() || !this.hudWindow) return;
     const hudBounds = this.hudWindow.getBounds();
     const display = screen.getDisplayMatching(hudBounds);
-
     this.window.setBounds(computeButtonBounds(hudBounds, display.workArea));
+  }
 
-    // Same lightweight hide/show workaround as PetWindow for Mac multi-display
-    // transparent-backing leak. Button already uses setOpacity(0/1) for its
-    // hover toggle so it's mostly invisible anyway; this only matters when
-    // user crosses displays AND hover-reveals the button on the new screen.
-    if (this._lastDisplayId !== undefined && display.id !== this._lastDisplayId) {
-      this.window.hide();
-      this.window.show();
-    }
-    this._lastDisplayId = display.id;
+  // Same debounced display-change recreate as PetWindow — only runs after
+  // user has stopped dragging the HUD. Preserves pending hover + active pet
+  // state across the recreate via the existing IPC pending-flush.
+  _maybeRecreateForNewDisplay() {
+    if (!this.window || this.window.isDestroyed() || !this.hudWindow || this.hudWindow.isDestroyed()) return;
+    const displayId = screen.getDisplayMatching(this.hudWindow.getBounds()).id;
+    if (this._stableDisplayId === displayId) return;
+    this._stableDisplayId = displayId;
+    const savedHover = this._pendingHover;
+    const savedPet = this._pendingActivePet;
+    if (this._hideTimer) { clearTimeout(this._hideTimer); this._hideTimer = null; }
+    if (this.window && !this.window.isDestroyed()) this.window.close();
+    this.window = null;
+    this._rendererReady = false;
+    this._ensureWindow();
+    this._pendingHover = savedHover;
+    this._pendingActivePet = savedPet;
+    // Renderer's 'button:ready' will flush both pending states.
   }
 
   setActivePet(pet) {
