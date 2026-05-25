@@ -272,31 +272,19 @@ class PetWindow {
     const display = screen.getDisplayMatching(hudBounds);
     const bounds = computePetBounds(hudBounds, this.anchor, display.workArea);
 
-    // Electron transparent windows on macOS lose their transparent backing
-    // when moved between displays (known issue). If the HUD has crossed to a
-    // new display, recreate the pet window so it's re-born on the new display
-    // with a fresh transparent compositor — saves the pet from showing a
-    // solid white window backing on the secondary screen.
+    this.window.setBounds(bounds);
+
+    // Lightweight workaround for Electron's transparent-window backing leak
+    // on macOS multi-display: when HUD crosses to a new display, hide + show
+    // the pet window to nudge the compositor to re-apply the transparent
+    // layer. Cheap, doesn't destroy renderer state, doesn't race during a
+    // fast cross-screen drag. (Previous recreate approach was too heavy and
+    // raced — pet would vanish when crossing back to primary.)
     if (this._lastDisplayId !== undefined && display.id !== this._lastDisplayId) {
-      this._lastDisplayId = display.id;
-      if (this.pet) {
-        const savedPet = this.pet;
-        if (this.window && !this.window.isDestroyed()) this.window.close();
-        this.window = null;
-        this._rendererReady = false;
-        this._pendingPet = null;
-        // Stop & restart state machine to clear any in-flight timers tied to
-        // the closing window's renderer.
-        this.stateMachine.stop();
-        this.pet = null;
-        this.loadPet(savedPet);          // ensures window with new bounds
-        this.stateMachine.start();
-        return;
-      }
+      this.window.hide();
+      this.window.show();
     }
     this._lastDisplayId = display.id;
-
-    this.window.setBounds(bounds);
   }
 
   loadPet(pet) {
