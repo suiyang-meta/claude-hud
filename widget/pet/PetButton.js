@@ -53,7 +53,7 @@ class PetButton {
     this._rendererReady = false;
 
     const hudBounds = this.hudWindow ? this.hudWindow.getBounds() : { x: 100, y: 100, width: 0, height: 0 };
-    const wa = screen.getPrimaryDisplay().workArea;
+    const wa = screen.getDisplayMatching(hudBounds).workArea;
     const bounds = computeButtonBounds(hudBounds, wa);
 
     this.window = new BrowserWindow({
@@ -102,7 +102,7 @@ class PetButton {
   _reposition() {
     if (!this.window || this.window.isDestroyed() || !this.hudWindow) return;
     const hudBounds = this.hudWindow.getBounds();
-    const wa = screen.getPrimaryDisplay().workArea;
+    const wa = screen.getDisplayMatching(hudBounds).workArea;
     this.window.setBounds(computeButtonBounds(hudBounds, wa));
   }
 

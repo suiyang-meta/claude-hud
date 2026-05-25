@@ -84,7 +84,7 @@ class PetLibrary {
   _openWindow() {
     if (this.window && !this.window.isDestroyed()) return;
     const hudBounds = this.hudWindow ? this.hudWindow.getBounds() : { x: 100, y: 100, width: 0, height: 0 };
-    const wa = screen.getPrimaryDisplay().workArea;
+    const wa = screen.getDisplayMatching(hudBounds).workArea;
     const bounds = computePopoverBounds(hudBounds, this.preferLeft, wa);
 
     this.window = new BrowserWindow({
