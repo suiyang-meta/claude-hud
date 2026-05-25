@@ -130,6 +130,7 @@ function initPet() {
     onClick: () => { if (petLibrary) petLibrary.toggle(); },
   });
   petButton.attachHud(mainWindow);
+  petLibrary.setPetButton(petButton);   // library opens on button's current side
 
   if (activeId) setActivePet(activeId);
 }

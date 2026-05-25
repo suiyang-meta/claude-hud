@@ -33,9 +33,9 @@ function listInstalledPets(petsRoot) {
 }
 
 function computePopoverBounds(hud, preferLeft, wa) {
-  // Try the preferred side first, flip if it overflows screen.
+  // Vertically center on HUD, clamped to the work area.
   const yCenter = hud.y + (hud.height - POPOVER_H) / 2;
-  const yClamped = Math.max(wa.x, Math.min(wa.x + wa.height - POPOVER_H, yCenter));
+  const yClamped = Math.max(wa.y, Math.min(wa.y + wa.height - POPOVER_H, yCenter));
   const xLeft  = hud.x - POPOVER_W - POPOVER_GAP;
   const xRight = hud.x + hud.width + POPOVER_GAP;
   let x;
@@ -66,6 +66,10 @@ class PetLibrary {
   setHudWindow(hudWindow) { this.hudWindow = hudWindow; }
   setActiveId(petId) { this.activeId = petId; this._pushState(); }
   setPreferLeft(bool) { this.preferLeft = bool; }
+  // Optional: if set, library opens on whichever side the pet button is on
+  // (matches button's auto-flip behavior so the popover lands next to the
+  // affordance the user just clicked).
+  setPetButton(petButton) { this.petButton = petButton; }
 
   listPets() {
     return listInstalledPets(this.petsRoot);
@@ -85,7 +89,18 @@ class PetLibrary {
     if (this.window && !this.window.isDestroyed()) return;
     const hudBounds = this.hudWindow ? this.hudWindow.getBounds() : { x: 100, y: 100, width: 0, height: 0 };
     const wa = screen.getDisplayMatching(hudBounds).workArea;
-    const bounds = computePopoverBounds(hudBounds, this.preferLeft, wa);
+    // If we have a button reference, follow whichever side the button is on
+    // right now (it may have auto-flipped due to HUD being near a screen edge).
+    let preferLeft = this.preferLeft;
+    if (this.petButton) {
+      const btnBounds = this.petButton.getBounds();
+      if (btnBounds) {
+        const btnCenter = btnBounds.x + btnBounds.width / 2;
+        const hudCenter = hudBounds.x + hudBounds.width / 2;
+        preferLeft = btnCenter < hudCenter;
+      }
+    }
+    const bounds = computePopoverBounds(hudBounds, preferLeft, wa);
 
     this.window = new BrowserWindow({
       width: bounds.width,
