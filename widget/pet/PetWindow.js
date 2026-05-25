@@ -214,10 +214,6 @@ class PetWindow {
     this.window.setVisibleOnAllWorkspaces(true);
     this.window.loadFile(path.join(__dirname, 'pet-renderer.html'));
 
-    // Track which display this window was born on, so the next drag-end
-    // can recreate the window if HUD has moved to a different display.
-    this._stableDisplayId = screen.getDisplayMatching(hudBounds).id;
-
     this.window.on('closed', () => {
       this.window = null;
       this._rendererReady = false;
@@ -253,14 +249,12 @@ class PetWindow {
       this._reposition();
 
       // Drag-end detection: if no move event arrives within DRAG_END_MS, the
-      // user released the HUD. Force StateMachine out of drag state (zero
-      // linger) AND piggyback the display-change recreate check (debounced
-      // single-shot — no race during cross-screen drag).
+      // user released the HUD. Force StateMachine out of drag state so the
+      // pet snaps back to baseline with zero linger.
       if (this._dragEndTimer) clearTimeout(this._dragEndTimer);
       this._dragEndTimer = setTimeout(() => {
         this._dragEndTimer = null;
         this.stateMachine.onDragEnd();
-        this._maybeRecreateForNewDisplay();
       }, DRAG_END_MS);
     });
   }
@@ -277,32 +271,6 @@ class PetWindow {
     const display = screen.getDisplayMatching(hudBounds);
     const bounds = computePetBounds(hudBounds, this.anchor, display.workArea);
     this.window.setBounds(bounds);
-  }
-
-  // Called only after the user has stopped dragging the HUD for DRAG_END_MS.
-  // If the HUD has landed on a different display than where the pet window
-  // was born, recreate the pet window so it's re-born on the new display
-  // with a fresh transparent compositor (Electron's `transparent: true` only
-  // works correctly on the display the window was created on).
-  //
-  // Debouncing to drag-end avoids the race that killed the previous approach:
-  // a fast cross-screen drag triggered multiple recreates within ~200ms and
-  // the second recreate's renderer-ready IPC would never arrive, leaving
-  // the pet vanished.
-  _maybeRecreateForNewDisplay() {
-    if (!this.window || this.window.isDestroyed() || !this.hudWindow || this.hudWindow.isDestroyed()) return;
-    const displayId = screen.getDisplayMatching(this.hudWindow.getBounds()).id;
-    if (this._stableDisplayId === displayId) return;
-    this._stableDisplayId = displayId;
-    if (!this.pet) return;
-    const savedPet = this.pet;
-    if (this.window && !this.window.isDestroyed()) this.window.close();
-    this.window = null;
-    this._rendererReady = false;
-    this._pendingPet = null;
-    this.stateMachine.stop();
-    this.pet = null;
-    this.loadPet(savedPet);          // _ensureWindow + starts state machine
   }
 
   loadPet(pet) {
