@@ -214,6 +214,10 @@ class PetWindow {
     this.window.setVisibleOnAllWorkspaces(true);
     this.window.loadFile(path.join(__dirname, 'pet-renderer.html'));
 
+    // Track the display the window was born on; drag-end checks this to
+    // know whether HUD has crossed displays since.
+    this._stableDisplayId = screen.getDisplayMatching(hudBounds).id;
+
     this.window.on('closed', () => {
       this.window = null;
       this._rendererReady = false;
@@ -249,12 +253,14 @@ class PetWindow {
       this._reposition();
 
       // Drag-end detection: if no move event arrives within DRAG_END_MS, the
-      // user released the HUD. Force StateMachine out of drag state so the
-      // pet snaps back to baseline with zero linger.
+      // user released the HUD. Force StateMachine out of drag state (zero
+      // linger) AND piggyback the display-change recreate check (debounced
+      // single-shot — no race during cross-screen drag).
       if (this._dragEndTimer) clearTimeout(this._dragEndTimer);
       this._dragEndTimer = setTimeout(() => {
         this._dragEndTimer = null;
         this.stateMachine.onDragEnd();
+        this._maybeRecreateForNewDisplay();
       }, DRAG_END_MS);
     });
   }
@@ -271,6 +277,30 @@ class PetWindow {
     const display = screen.getDisplayMatching(hudBounds);
     const bounds = computePetBounds(hudBounds, this.anchor, display.workArea);
     this.window.setBounds(bounds);
+  }
+
+  // After the user stops dragging the HUD, check whether the HUD has landed
+  // on a different display than where the pet window was born; if so,
+  // destroy + respawn the pet window so it's born on the new display with a
+  // fresh transparent compositor. Uses `destroy()` not `close()` —
+  // destroy is synchronous force-kill, close is async graceful and the
+  // graceful path left zombie state in earlier attempts.
+  _maybeRecreateForNewDisplay() {
+    if (!this.window || this.window.isDestroyed() || !this.hudWindow || this.hudWindow.isDestroyed()) return;
+    const displayId = screen.getDisplayMatching(this.hudWindow.getBounds()).id;
+    if (this._stableDisplayId === displayId) return;
+    this._stableDisplayId = displayId;
+    if (!this.pet) return;
+    const savedPet = this.pet;
+    this.window.destroy();              // sync, fires 'closed' synchronously
+    this.window = null;
+    this._rendererReady = false;
+    this._pendingPet = null;
+    this.stateMachine.stop();
+    this.pet = null;
+    // Small delay so macOS releases the old window's compositor before we
+    // create a new one on the new display.
+    setTimeout(() => this.loadPet(savedPet), 30);
   }
 
   loadPet(pet) {

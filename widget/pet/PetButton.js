@@ -85,6 +85,9 @@ class PetButton {
     this.window.setOpacity(0);
     this.window.loadFile(path.join(__dirname, 'button-renderer.html'));
 
+    // Track birth display for drag-end debounced display-change recreate.
+    this._stableDisplayId = screen.getDisplayMatching(hudBounds).id;
+
     this.window.on('closed', () => {
       this.window = null;
       this._rendererReady = false;
@@ -95,7 +98,15 @@ class PetButton {
     this.hudWindow = hudWindow;
     this._ensureWindow();
     if (!hudWindow) return;
-    hudWindow.on('move', () => this._reposition());
+    hudWindow.on('move', () => {
+      this._reposition();
+      // Drag-end debounced display-change recreate (single-shot).
+      if (this._dragEndTimer) clearTimeout(this._dragEndTimer);
+      this._dragEndTimer = setTimeout(() => {
+        this._dragEndTimer = null;
+        this._maybeRecreateForNewDisplay();
+      }, 80);
+    });
     hudWindow.on('resize', () => this._reposition());
   }
 
@@ -104,6 +115,27 @@ class PetButton {
     const hudBounds = this.hudWindow.getBounds();
     const display = screen.getDisplayMatching(hudBounds);
     this.window.setBounds(computeButtonBounds(hudBounds, display.workArea));
+  }
+
+  // Same drag-end debounced destroy+respawn as PetWindow for the Mac
+  // multi-display transparent-backing bug.
+  _maybeRecreateForNewDisplay() {
+    if (!this.window || this.window.isDestroyed() || !this.hudWindow || this.hudWindow.isDestroyed()) return;
+    const displayId = screen.getDisplayMatching(this.hudWindow.getBounds()).id;
+    if (this._stableDisplayId === displayId) return;
+    this._stableDisplayId = displayId;
+    const savedHover = this._pendingHover;
+    const savedPet = this._pendingActivePet;
+    if (this._hideTimer) { clearTimeout(this._hideTimer); this._hideTimer = null; }
+    this.window.destroy();
+    this.window = null;
+    this._rendererReady = false;
+    setTimeout(() => {
+      this._ensureWindow();
+      this._pendingHover = savedHover;
+      this._pendingActivePet = savedPet;
+      // Renderer's 'button:ready' will flush both pending states.
+    }, 30);
   }
 
   setActivePet(pet) {
