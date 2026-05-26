@@ -2,8 +2,6 @@
 
 A floating widget that shows your Claude.ai usage on your desktop, so you never have to click into settings just to see how much you've got left.
 
-![What it looks like](screenshot-hero.png)
-
 ---
 
 ## What's in this zip
@@ -20,7 +18,7 @@ You'll have downloaded one of two zips:
 
 **Windows zip (`HUD-for-Claude-Windows.zip`):**
 ```
-├── HUD for Claude Setup 1.2.0.exe  ← the Windows installer (x64)
+├── HUD for Claude Setup 2.0.0.exe  ← the Windows installer (x64)
 ├── extension/                      ← Chrome extension — FALLBACK ONLY (use Web Store first, see step ②)
 ├── README.md                       ← you are here
 └── TROUBLESHOOTING.md              ← if something goes wrong
@@ -50,7 +48,7 @@ You'll have downloaded one of two zips:
 
 **On Windows (x64):**
 
-1. Double-click `HUD for Claude Setup 1.2.0.exe`
+1. Double-click `HUD for Claude Setup 2.0.0.exe`
 2. **Windows SmartScreen will pop up saying "Windows protected your PC"** — this is normal for apps not signed with a paid certificate. Click **More info** → **Run anyway**.
 3. The installer wizard opens. Pick install location if you want (default works), keep "Desktop shortcut" and "Start Menu shortcut" checked, click **Install**.
 4. After install, HUD for Claude launches automatically from the Start Menu / desktop shortcut.
@@ -115,8 +113,6 @@ See `TROUBLESHOOTING.md`.
 
 ## Feedback
 
-This is a one-person side project. If something broke or you have ideas — tell me:
-- Email: metasui1491@gmail.com
-- Twitter/X: (TBD)
+This is a one-person side project. If something broke or you have ideas — tell me at metasui1491@gmail.com.
 
 HUD for Claude is not affiliated with Anthropic.

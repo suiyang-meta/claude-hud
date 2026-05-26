@@ -28,8 +28,8 @@ cd claude-hud/widget
 npm install
 
 # Build for your platform
-npm run build:mac    # → widget/dist/HUD for Claude-1.2.0-arm64.dmg
-npm run build:win    # → widget/dist/HUD for Claude Setup 1.2.0.exe
+npm run build:mac    # → widget/dist/HUD for Claude-2.0.0-arm64.dmg
+npm run build:win    # → widget/dist/HUD for Claude Setup 2.0.0.exe
 npm run build        # → both at once
 
 # Or run from source (dev mode)

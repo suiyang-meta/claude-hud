@@ -32,22 +32,26 @@
 <body>
 
 <h1>HUD for Claude — Privacy Policy</h1>
-<div class="updated">Last updated: April 16, 2026</div>
+<div class="updated">Last updated: May 26, 2026</div>
 
 <p>HUD for Claude is a two-part product: a Chrome browser extension and a desktop app (macOS or Windows). Both are built by a single independent developer. This policy explains exactly what data is read, where it goes, and what is stored.</p>
 
 <h2>Short version</h2>
-<p>Your data never leaves your computer. There are no servers, no analytics, no accounts, no tracking. The extension reads four public usage numbers from your claude.ai usage page and sends them to the desktop app running on your own machine via localhost. That's it.</p>
+<p>Your data never leaves your computer. There are no servers, no analytics, no accounts, no tracking. The extension reads the usage indicators shown on your claude.ai usage page and sends them to the desktop app running on your own machine via localhost. That's it.</p>
 
 <h2>What the extension reads</h2>
+<p>The numbers shown on your claude.ai usage page &mdash; i.e. how much of your plan's allowance you've used:</p>
 <ul>
-  <li>The four usage percentages shown on your claude.ai usage page: current session usage, weekly all-models usage, weekly Sonnet-only usage, and daily routine runs.</li>
-  <li>The reset timestamps shown on that same page.</li>
+  <li><strong>Percentage indicators:</strong> current session, weekly all-models, weekly Sonnet-only.</li>
+  <li><strong>Count indicator:</strong> daily routine runs (e.g. "5 / 100").</li>
+  <li><strong>Currency-denominated indicator:</strong> extra usage, if your plan has it &mdash; how much you've spent against your monthly spend limit, your current balance, and the reset date. This is the same kind of usage indicator as the others, just measured in dollars instead of percent or count, because that's how claude.ai displays the additional-usage allowance. It is <em>not</em> billing or payment data.</li>
+  <li><strong>Reset timestamps:</strong> when each of the above resets.</li>
 </ul>
 <p>The extension does <strong>not</strong> read:</p>
 <ul>
   <li>Any of your conversations or prompts.</li>
   <li>Your account information, email, or name.</li>
+  <li>Your payment method, credit card, invoices, or billing address.</li>
   <li>Any other page on claude.ai besides the usage page.</li>
   <li>Any other website.</li>
 </ul>
