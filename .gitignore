@@ -7,7 +7,7 @@ assets/screenshots/
 blueprint-v*.md
 hud-promo-blueprint-v*.md
 ai-kol-*-v*.md
-nodes/
+session-nodes/
 
 # session 03: internal docs not for public repo
 AGENTS.md
