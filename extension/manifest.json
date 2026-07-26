@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "HUD for Claude",
-  "version": "1.4.0",
+  "name": "Claude Usage Tracker — HUD",
+  "version": "1.4.1",
   "description": "Displays your Claude.ai usage stats on your desktop as a floating HUD. Requires the HUD for Claude Mac app.",
   "icons": {
     "16": "icon16.png",
@@ -28,7 +28,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "HUD for Claude",
+    "default_title": "Claude Usage Tracker — HUD",
     "default_icon": {
       "16": "icon16.png",
       "32": "icon32.png",
