@@ -239,7 +239,9 @@
     function quotaRow(label, q, extraSub) {
       if (!q || q.percent == null) return '';
       const bits = [];
-      const u = untilText(q.resetsAt);
+      // OAuth gives an ISO timestamp we can count down from; the extension gives
+      // a pre-rendered string, which we print as-is.
+      const u = untilText(q.resetsAt) || q.resetsText;
       if (u) bits.push('resets ' + u);
       if (extraSub) bits.push(extraSub);
       return `<div class="row">

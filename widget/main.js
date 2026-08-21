@@ -320,6 +320,36 @@ function showContextMenu() {
 //   local  -> ~/.claude/projects transcripts, scanned incrementally on disk
 // Neither sends anything off this machine.
 
+/**
+ * Translate the extension's payload into the shape the renderer reads.
+ *
+ * This is the Windows path: the keychain is macOS-only, so quota there comes
+ * from the extension scraping claude.ai. Its reset fields are human strings
+ * ("in 4h 12m", "Mon 3:00 PM") rather than ISO timestamps, so they are passed
+ * through as resetsText for the renderer to print verbatim.
+ */
+function fromExtensionShape(d) {
+  if (!d || !d.found) return null;
+  const row = (percent, text) => (typeof percent === 'number')
+    ? { percent, severity: 'normal', resetsAt: null, resetsText: text || null, isActive: true }
+    : null;
+  return {
+    ok: true,
+    source: 'extension',
+    fetchedAt: Date.now(),
+    plan: null,
+    session: row(d.session, d.session_reset ? 'in ' + d.session_reset : null),
+    weeklyAll: row(d.weekly_all, d.weekly_reset || null),
+    weeklyScoped: row(d.weekly_sonnet, null),
+    extraUsage: d.extra_usage ? {
+      utilization: d.extra_usage.percent,
+      monthlyLimit: d.extra_usage.limit,
+      usedCredits: d.extra_usage.spent,
+      currency: 'USD',
+    } : null,
+  };
+}
+
 /** Pet speaks the old extension dialect; translate rather than touch pet code. */
 function toPetShape() {
   const q = usageState.quota;
@@ -334,7 +364,9 @@ function toPetShape() {
 
 function pushUsage() {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('usage-update', usageState);
+    // Fall back to the extension's reading whenever the OAuth leg has nothing.
+    const quota = usageState.quota || fromExtensionShape(extensionData);
+    mainWindow.webContents.send('usage-update', { ...usageState, quota });
   }
   if (petWindow) petWindow.updateUsage(toPetShape());
 }
@@ -422,7 +454,8 @@ ipcMain.on('set-opacity', (event, val) => {
 });
 ipcMain.on('close-app', () => app.quit());
 ipcMain.on('get-data', (event) => {
-  event.reply('usage-update', usageState);
+  const quota = usageState.quota || fromExtensionShape(extensionData);
+  event.reply('usage-update', { ...usageState, quota });
 });
 // Floor the window at the height its leanest layout needs, so dragging shorter
 // stops at that point instead of scaling the content down. The renderer knows

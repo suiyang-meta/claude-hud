@@ -1,6 +1,6 @@
 {
   "name": "claude-hud",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "description": "Floating desktop widget that shows your Claude.ai usage as blood bars in real time.",
   "main": "main.js",
   "author": "Sui",

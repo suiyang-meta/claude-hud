@@ -46,25 +46,41 @@ Deliberate. The Releases page intentionally doesn't attach `.dmg` / `.exe` binar
 
 ## How it works
 
-The desktop widget (Electron) reads two things that are already on your machine:
+The widget draws two kinds of numbers, and where each comes from depends on your OS.
 
-1. **Your plan's allowance** — it borrows the credential Claude Code keeps in your macOS
-   keychain and asks Anthropic's API about your own account: session and weekly
-   percentages, and when they reset. macOS asks your permission the first time.
-2. **Your token usage** — it scans your local Claude Code transcripts
-   (`~/.claude/projects/`) for each call's timestamp, model, and token counts, and
-   weights them by Anthropic's cache pricing so the dollar figure means "what this would
-   cost at API list price". **Prompt and reply text is never read.**
+### macOS — reads your machine directly
 
-The **Chrome extension** is now a fallback for when the keychain route is unavailable
-(non-macOS, or permission declined). When active it scrapes the usage page and sends the
-numbers to the widget over `ws://localhost:27843`.
+| | Source |
+|---|---|
+| **Plan allowance** (session %, weekly %, reset times) | The credential Claude Code keeps in your **macOS keychain**, used to ask Anthropic's API about your own account. macOS asks permission the first time. |
+| **Token usage** (today, by model, 30 days, lifetime) | Your local Claude Code transcripts in `~/.claude/projects/` |
+| **Chrome extension** | **Not needed.** No browser, no tab, no claude.ai login. |
+
+Because Anthropic invalidates the previous credential whenever it renews one, the app
+writes the replacement back to the same keychain entry — otherwise Claude Code would get
+signed out.
+
+### Windows — allowance still comes through the extension
+
+The keychain is macOS-only, so the v2 path stays in place for the allowance half:
+
+| | Source |
+|---|---|
+| **Plan allowance** | **Chrome extension** — keeps a tab on your claude.ai usage page, scrapes the percentages, pushes them to the widget over `ws://localhost:27843` |
+| **Token usage** | Same as macOS: your local `~/.claude/projects/` transcripts. This leg is plain file reading and is not macOS-specific. |
+| **Chrome extension** | **Required** for the allowance bars. Without it you still get the token/cost half. |
+
+> The Windows code path is platform-neutral by construction (the keychain call refuses on
+> non-Darwin and falls through to the extension; transcript scanning uses the OS home
+> directory), and the fallback was verified against the extension's real payload shape.
+> It has **not** been re-tested on a physical Windows machine since the data layer
+> changed — if you run it there and something is off, that is the first thing to suspect.
+
+Either way: prompt and reply text is never read, and the only host contacted is
+`api.anthropic.com`, with your own credential, about your own account. Nothing goes to
+the developer — no servers, no analytics, no telemetry.
 
 Requires Claude Code installed and signed in — the widget has no login of its own.
-
-The only host contacted is `api.anthropic.com`, with your own credential, about your own
-account. Nothing goes to the developer: no accounts, no servers, no analytics, no
-telemetry.
 
 Full privacy policy: [release-assets/privacy/privacy-policy.html](release-assets/privacy/privacy-policy.html) (or live at [suiyang-meta.github.io/claude-hud/privacy](https://suiyang-meta.github.io/claude-hud/privacy)).
 

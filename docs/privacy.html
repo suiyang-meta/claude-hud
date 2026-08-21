@@ -80,12 +80,15 @@ account's usage allowance and to renew your own credential. Nothing is sent to t
 developer. There are no analytics SDKs, crash reporters, ad networks, or third-party
 APIs of any kind.</p>
 
-<h2>The Chrome extension (optional)</h2>
-<p>The extension is now a fallback, used only when the keychain route is unavailable
-(non-macOS, or permission declined). When active it reads the usage percentages shown on
-your claude.ai usage page and sends them to the desktop app over
-<code>ws://localhost:27843</code> — a server on your own computer. It reads no other
-page, and none of your conversations. Its cache lives in
+<h2>The Chrome extension</h2>
+<p><strong>On macOS it is not needed</strong> — the keychain route above supplies the
+allowance, so there is no browser tab and no claude.ai session involved.</p>
+<p><strong>On Windows it is how the allowance arrives.</strong> The keychain is
+macOS-only, so there the extension keeps a tab on your claude.ai usage page, reads the
+usage percentages shown on it, and sends them to the desktop app over
+<code>ws://localhost:27843</code> — a server on your own computer, not the internet. The
+token and cost figures still come from your local transcripts, exactly as on macOS.</p>
+<p>The extension reads no other page and none of your conversations. Its cache lives in
 <code>chrome.storage.local</code> and never leaves your browser profile.</p>
 
 <h2>What is never read</h2>
