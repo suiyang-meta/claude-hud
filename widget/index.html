@@ -273,8 +273,8 @@
         ? 'Quota is stale — open Claude Code once to renew its token'
         : 'Live';
 
-      const lean = compact || autoTrim;   // hide secondary blocks
-      const wide = wideMode && !compact;
+      const lean = compact || mode === 'trim';   // hide secondary blocks
+      const wide = mode === 'wide' && !compact;
       inner.classList.toggle('wide', wide);
       inner.classList.toggle('tight', lean);
       document.getElementById('btnMini').classList.toggle('on', lean);
@@ -360,43 +360,46 @@
     }
 
     const BASE_TALL = 300, BASE_WIDE = 540;
-    let wideMode = false, autoTrim = false, lastKey = '', lastAsk = 0, relayoutDepth = 0;
+    let mode = 'full';   // 'full' | 'wide' | 'trim'
+    let lastKey = '', lastAsk = 0, relayoutDepth = 0;
     let expandOnce = false;   // an explicit expand outranks auto-trim for one pass
 
-    /* Breakpoint on WIDTH, not aspect ratio. Height follows width to preserve the
-       design proportions, so the ratio is effectively pinned (~1.08 at every
-       size) and a ratio test could never fire no matter how wide you dragged.
-       Hysteresis keeps a window parked on the boundary from oscillating. */
-    function wantWide(w, h) {
-      if (compact) return false;
-      const ratio = w / Math.max(1, h);
-      // Two ways in: the window is simply wide, or it has been squashed flat and
-      // still has enough width to carry two columns. Below ~330px a split leaves
-      // columns too narrow to read, so squashing there just scales instead.
-      // Exit thresholds sit lower than entry so a window resting on the boundary
-      // does not flicker between layouts.
-      return wideMode
-        ? (w > 400 || (w >= 240 && ratio > 1.05))
-        : (w > 450 || (w >= 250 && ratio > 1.28));
+    /* Pick the richest form that FITS, never the one an aspect ratio suggests.
+       Ordering mattered: deciding "two columns?" before "trim?" meant shrinking
+       the height raised the ratio, re-triggered two columns, and brought the
+       full content back to be squashed — the panel got *busier* as it got
+       shorter. Choosing by available height makes the ladder monotonic:
+       full -> wide -> trim, and it never climbs back.
+
+       Each threshold is the height that form actually needs, so no form is used
+       at a size that would force it to scale down. Each is loosened slightly for
+       the form already on screen, so a window resting on a boundary cannot flip
+       back and forth. */
+    const H_FULL = 400, H_WIDE = 258;
+
+    function pickMode(w, h) {
+      if (compact) return 'trim';
+      const splitFloor = mode === 'wide' ? 238 : 250;
+      const hFull      = mode === 'full' ? 384 : H_FULL;
+      const hWide      = mode === 'wide' ? 244 : H_WIDE;
+
+      // Two columns when there is width to spare, or when one column no longer fits.
+      if (w >= splitFloor && (w > 450 || h < hFull)) {
+        return h >= hWide ? 'wide' : 'trim';
+      }
+      return h >= hFull ? 'full' : 'trim';
     }
 
     function syncLayout() {
       const w = window.innerWidth  || BASE_TALL;
       const h = window.innerHeight || 1;
       if (relayoutDepth > 3) return;   // guard: a mode flip must settle in one pass
-      const want = wantWide(w, h);
-      // Narrow AND short: splitting would give unreadable columns and scaling
-      // would shrink the text away, so drop to the essentials instead. Hysteresis
-      // (250 in / 300 out) keeps the boundary from flickering.
-      // An explicit expand must win: auto-trim shrinks the window, which then
-      // satisfies its own trigger, so without this override the panel can never
-      // be re-opened at a small size.
-      const wantTrim = expandOnce
-        ? false
-        : (!want && !compact && (autoTrim ? h < 300 : h < 250));
-      if (want !== wideMode || wantTrim !== autoTrim) {
-        wideMode = want;
-        autoTrim = wantTrim;
+      // An explicit expand outranks the automatic choice for one pass: trimming
+      // shrinks the window, which then satisfies its own trigger, so without
+      // this the panel could never be reopened at a small size.
+      const want = expandOnce ? (w > 450 ? 'wide' : 'full') : pickMode(w, h);
+      if (want !== mode) {
+        mode = want;
         relayoutDepth++;
         try { render(); } finally { relayoutDepth--; }   // re-enters with new DOM
         return;
@@ -409,9 +412,13 @@
          text keeps its size and the content reaches the edges. Scaling is the
          fallback for windows outside the band, not the primary mechanism —
          magnifying a fixed design is what made padding look bloated. */
-      const base = wideMode ? Math.max(380, Math.min(w, 1000))
-              : compact ? Math.max(230, Math.min(w, 900))
-              :           Math.max(228, Math.min(w, 460));
+      // Floors sit at the window's own minimum width so every mode lays out at
+      // 1:1 across the whole usable range. A floor above the actual width forces
+      // a scale-down — a 380px floor was squashing two columns to 0.79 in a
+      // 300px window, which is exactly the "squashed" look we are avoiding.
+      const base = mode === 'wide' ? Math.max(210, Math.min(w, 1000))
+              : (compact || mode === 'trim') ? Math.max(210, Math.min(w, 900))
+              :           Math.max(210, Math.min(w, 460));
 
       // Side padding tracks the width: generous when there is room, tight when
       // the panel is small, so the ratio of frame to content stays constant.
@@ -453,9 +460,8 @@
       // The button means "toggle what I'm looking at". Auto-trim can put the
       // panel in the lean state without the user asking, so pressing it then
       // must expand rather than set a flag nobody can see.
-      if (compact || autoTrim) {
+      if (compact || mode === 'trim') {
         compact = false;
-        autoTrim = false;
         expandOnce = true;
       } else {
         compact = true;
