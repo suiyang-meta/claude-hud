@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 // pet-renderer.js — runs in the pet BrowserWindow's renderer process.
 // Loads a spritesheet, listens to IPC for state changes, draws frames at 8fps.
 

@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 // PetWindow — owns the pet's BrowserWindow + position tracking against HUD +
 // the per-pet StateMachine. Lifecycle:
 //   - constructor: stash callbacks/config, do not open window yet

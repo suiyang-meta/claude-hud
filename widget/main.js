@@ -1,4 +1,10 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 const { app, BrowserWindow, ipcMain, screen, Menu, shell } = require('electron');
+
+// Attribution. Kept as one constant so every surface that names the project —
+// the panel footer, the context menu, the macOS about panel — cannot drift apart.
+const REPO_URL = 'https://github.com/suiyang-meta/claude-hud';
+const AUTHOR = 'Sui1491';
 const path = require('path');
 const fs = require('fs');
 const WebSocket = require('ws');
@@ -304,6 +310,12 @@ function showContextMenu() {
       label: `HUD for Claude v${app.getVersion()}`,
       enabled: false
     },
+    { type: 'separator' },
+    {
+      label: `About · by ${AUTHOR}`,
+      click: () => shell.openExternal(REPO_URL),
+    },
+    { type: 'separator' },
     {
       label: 'Quit HUD for Claude',
       click: () => app.quit()
@@ -476,6 +488,7 @@ ipcMain.on('set-opacity-lock', (event, locked) => {
   opacityLocked = !!locked;
   refreshOpacity();
 });
+ipcMain.on('open-repo', () => shell.openExternal(REPO_URL));
 ipcMain.on('show-context-menu', () => showContextMenu());
 ipcMain.on('resize-window', (event, height) => {
   if (mainWindow) {
@@ -493,6 +506,14 @@ ipcMain.on('set-autostart', (event, enabled) => {
 
 // ---- App lifecycle ----
 app.whenReady().then(() => {
+  // Populates the native macOS about panel with the same attribution.
+  app.setAboutPanelOptions({
+    applicationName: 'HUD for Claude',
+    applicationVersion: app.getVersion(),
+    credits: `by ${AUTHOR} — ${REPO_URL}`,
+    copyright: `© 2026 ${AUTHOR}. MIT licensed.`,
+  });
+
   // Apply persisted auto-start preference (first launch defaults to ON)
   const prefs = loadPrefs();
   applyAutoStart(prefs.openAtLogin !== false);

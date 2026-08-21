@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 // PetButton — small always-visible BrowserWindow anchored to HUD's left side
 // (outside the HUD card). Click opens the pet library. Shows active pet's first
 // idle frame as preview, or a "+" placeholder when no pet is active.

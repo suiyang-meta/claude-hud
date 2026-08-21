@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 // CodexPetAdapter — loads Codex desktop pet packages (.codex-pet.zip or plain
 // folder with pet.json + spritesheet.webp at root).
 //

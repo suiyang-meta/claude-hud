@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 // button-renderer.js — pet button renderer.
 // Shows a tiny preview (first idle frame) of the active pet, or a "+" placeholder.
 (() => {

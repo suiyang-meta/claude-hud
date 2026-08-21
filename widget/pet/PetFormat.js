@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 // PetFormat — abstract adapter layer for pet packages.
 //
 // HUD treats pet packages format-agnostic. Each format (Codex .codex-pet.zip,

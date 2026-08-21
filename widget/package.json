@@ -1,9 +1,12 @@
 {
   "name": "claude-hud",
-  "version": "3.0.6",
+  "version": "3.1.0",
   "description": "Floating desktop widget that shows your Claude.ai usage as blood bars in real time.",
   "main": "main.js",
-  "author": "Sui",
+  "author": {
+    "name": "Sui1491",
+    "url": "https://github.com/suiyang-meta"
+  },
   "license": "MIT",
   "scripts": {
     "start": "electron .",
@@ -40,7 +43,12 @@
       },
       "identity": null,
       "hardenedRuntime": false,
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "extendInfo": {
+        "NSHumanReadableCopyright": "(c) 2026 Sui1491 — github.com/suiyang-meta/claude-hud — MIT",
+        "HUDOriginRepository": "https://github.com/suiyang-meta/claude-hud",
+        "HUDAuthor": "Sui1491"
+      }
     },
     "win": {
       "icon": "icon.png",
@@ -74,5 +82,10 @@
         }
       ]
     }
+  },
+  "homepage": "https://github.com/suiyang-meta/claude-hud",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/suiyang-meta/claude-hud.git"
   }
 }

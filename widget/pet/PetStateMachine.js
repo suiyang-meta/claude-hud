@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 // PetStateMachine — translates quota / interaction events into Codex pet states.
 // Runs in main process. Owns timers; pushes state name + bubble text via callbacks.
 //

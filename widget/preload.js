@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('hudAPI', {
@@ -13,4 +14,5 @@ contextBridge.exposeInMainWorld('hudAPI', {
   setAutoStart: (enabled) => ipcRenderer.send('set-autostart', enabled),
   resizeWindow: (height) => ipcRenderer.send('resize-window', height),
   setMinHeight: (height) => ipcRenderer.send('set-min-height', height),
+  openRepo: () => ipcRenderer.send('open-repo'),
 });

@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 // popup.js
 function getColor(pct) {
   if (pct >= 80) return 'red';

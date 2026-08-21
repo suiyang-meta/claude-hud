@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 // PetLibrary — manages the user's installed pets + the popover UI window.
 //
 // Responsibilities:

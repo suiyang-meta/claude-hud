@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 // pet-preload.js — exposes petAPI to the pet renderer process.
 const { contextBridge, ipcRenderer } = require('electron');
 

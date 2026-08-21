@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 // button-preload.js — exposes buttonAPI to the pet button window.
 const { contextBridge, ipcRenderer } = require('electron');
 

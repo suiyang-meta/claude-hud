@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 // library-preload.js — exposes libraryAPI to the library popover renderer.
 const { contextBridge, ipcRenderer } = require('electron');
 

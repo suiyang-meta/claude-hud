@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT -->
 <html>
 <head>
   <meta charset="utf-8">
@@ -15,6 +16,8 @@
       --track:     rgba(242,236,231,0.06);
       --live:      #6cc08a;
       --z: 1;
+      --hud-origin: "github.com/suiyang-meta/claude-hud";
+      --hud-author: "Sui1491";
     }
     * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; }
     html, body {
@@ -157,6 +160,15 @@
     /* The strip has no column structure to breathe around, so it sits closer
        to the edges than the tall layout does. */
     #inner.tight { padding-top:11px; padding-bottom:10px; }
+
+    /* Attribution. Kept at the threshold of legibility on purpose: present in
+       every screenshot, never competing with the data. */
+    .sig { font-size:7.5px; letter-spacing:.35px; text-align:right; margin-top:7px;
+           color:rgba(242,236,231,0.13); cursor:pointer; -webkit-app-region:no-drag;
+           transition:color .22s; }
+    .sig:hover { color:rgba(217,119,87,0.72); }
+    #inner.tight .sig { display:none; }   /* the strip has no room to spare */
+    #inner.wide .sig { grid-column: 1 / -1; }   /* span both columns, not a third cell */
 
     .empty { text-align:center; padding:22px 4px; }
     .empty .h { font-size:11.5px; color:var(--text-mid); font-weight:600; margin-bottom:6px; }
@@ -348,10 +360,14 @@
         </div>`;
       }
 
-      body.innerHTML = wide
+      const sig = '<div class="sig" id="sig" title="HUD for Claude — by Sui1491">by Sui1491</div>';
+      body.innerHTML = (wide
         ? `<div class="col-a">${hero}${quotaHtml}</div>
            <div class="col-b">${models}${spark}${life}</div>`
-        : hero + quotaHtml + models + spark + life;
+        : hero + quotaHtml + models + spark + life) + sig;
+
+      const sigEl = document.getElementById('sig');
+      if (sigEl) sigEl.addEventListener('click', () => window.hudAPI.openRepo());
 
       syncLayout();
       const heroEl = document.getElementById('hero');

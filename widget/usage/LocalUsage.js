@@ -1,4 +1,5 @@
 'use strict';
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 /**
  * LocalUsage — token + cost stats from Claude Code's own transcripts.
  *

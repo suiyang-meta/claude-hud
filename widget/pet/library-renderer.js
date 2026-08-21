@@ -1,3 +1,4 @@
+/* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 // library-renderer.js — runs in the pet library popover renderer.
 (() => {
   const SLOT_CAP = 6;
