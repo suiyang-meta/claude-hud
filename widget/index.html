@@ -3,221 +3,486 @@
 <head>
   <meta charset="utf-8">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-user-select: none; }
-    html, body { background: transparent; overflow: hidden; font-family: 'SF Mono', 'Menlo', monospace; width: 100%; height: 100%; }
-    #hud {
-      background: rgba(10,10,10,0.94);
-      border: 1px solid rgba(255,255,255,0.07);
-      border-radius: 12px;
-      padding: 12px 14px;
-      width: 100%;
-      height: 100%;
-      -webkit-app-region: drag;
-      opacity: 0.7;
-      transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Coral accent is Claw'd's own palette, so mascot and chrome read as one
+       product. One accent hue; the session bar warms toward red as it fills. */
+    :root {
+      --accent:    #d97757;
+      --accent-lo: #99553d;
+      --text:      #f2ece7;
+      --text-mid:  rgba(242,236,231,0.50);
+      --text-low:  rgba(242,236,231,0.26);
+      --hair:      rgba(242,236,231,0.07);
+      --track:     rgba(242,236,231,0.06);
+      --live:      #6cc08a;
+      --z: 1;
     }
-    #hud.hovered { opacity: 1.0; }
-    #hud.hidden  { opacity: 0.05; }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; }
+    html, body {
+      width:100%; height:100%; overflow:hidden; background:transparent;
+      font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .num { font-family:'SF Mono', ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+
+    #hud {
+      position:absolute; inset:0;
+      /* The window's native corner radius clips this; a CSS radius larger than
+         the native one would expose bare vibrancy at the corners. */
+      border-radius:10px;
+      overflow:hidden;
+      -webkit-app-region: drag;
+      display:flex; align-items:center; justify-content:center;
+      /* Near-black ground with aurora glows on top. Additive, not a tinted wash:
+         away from a light source the panel stays genuinely black. Warm band only
+         — amber through coral into deep red. */
+      background:
+        radial-gradient(66% 46% at 112% 130%, rgba(247,162,49,0.46) 0%, rgba(247,162,49,0.10) 38%, transparent 62%),
+        radial-gradient(52% 38% at 82% 112%, rgba(230,104,52,0.20) 0%, transparent 58%),
+        radial-gradient(74% 50% at 0% -12%,  rgba(198,38,32,0.32) 0%, rgba(198,38,32,0.07) 46%, transparent 70%),
+        radial-gradient(54% 36% at 30% 4%,   rgba(226,86,36,0.16) 0%, transparent 64%),
+        rgba(4,3,3,0.955);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.022),
+                  inset 0 0 0 1px rgba(242,236,231,0.04);
+    }
+    /* Frosted-glass grain. Coarse (low baseFrequency) so it reads as texture
+       rather than dither, and overlay-blended: overlay leaves near-black almost
+       untouched and bites only where the aurora lifts the ground — grain in the
+       light, clean black everywhere else. soft-light did nothing on this ground. */
+    /* Two grain layers, because one cannot cover both ends of this range:
+       ::before is a faint straight overlay that survives on pure black (where
+       blend modes collapse to nothing), ::after is overlay-blended and only
+       bites inside the aurora. Together the whole panel feels like one material.
+       Both sit under #inner (z-index 1), so text stays crisp. */
+    #hud::before {
+      content:''; position:absolute; inset:0; pointer-events:none;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23m)'/%3E%3C/svg%3E");
+      background-size:120px 120px;
+      opacity:.055;
+    }
+    #hud::after {
+      content:''; position:absolute; inset:0; pointer-events:none;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size:140px 140px;
+      opacity:.42; mix-blend-mode:overlay;
+    }
+
+    /* 300px is the design base. Everything scales as one block, so the type
+       hierarchy holds at any window size instead of reflowing into mush. */
+    #inner {
+      position:relative; z-index:1;
+      width:var(--base-w, 300px);
+      padding:var(--pad-y, 13px) var(--pad-x, 14px) calc(var(--pad-y, 13px) - 1px);
+      transform: scale(var(--z)); transform-origin: center center;
+    }
+    /* Outside #inner on purpose: window controls keep one size and one place at
+       every window size, instead of shrinking with the content. */
+    .ctl {
+      position:absolute; top:12px; right:13px; z-index:3;
+      display:flex; gap:6px;
+    }
     .no-drag { -webkit-app-region: no-drag; }
-    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .title { font-size: 9px; letter-spacing: 2.5px; text-transform: uppercase; color: rgba(255,255,255,0.22); }
-    .controls { display: flex; gap: 6px; align-items: center; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; cursor: pointer; }
-    .dot-close { background: #ff5f57; }
-    .dot-hide  { background: #febc2e; }
-    .stat { margin-bottom: 10px; }
-    .stat:last-child { margin-bottom: 0; }
-    .stat-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-    .stat-label { font-size: 9px; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: 0.8px; }
-    .stat-value { font-size: 10px; font-weight: 700; min-width: 32px; text-align: right; }
-    .bar-track { height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; overflow: hidden; }
-    .bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
-    .green  { color: #00e676; } .yellow { color: #ffcc00; } .red { color: #ff4040; }
-    .bar-green { background: #00e676; } .bar-yellow { background: #ffcc00; } .bar-red { background: #ff4040; }
-    .reset-text { font-size: 8px; color: rgba(255,255,255,0.15); margin-top: 3px; }
-    .divider { height: 1px; background: rgba(255,255,255,0.05); margin: 8px 0; }
-    .empty { font-size: 10px; color: rgba(255,255,255,0.35); text-align: center; padding: 6px 0; line-height: 1.7; }
-    .empty .headline { color: rgba(255,255,255,0.55); font-weight: 700; letter-spacing: 0.5px; margin-bottom: 4px; }
-    .empty .hint { font-size: 8px; color: rgba(255,255,255,0.25); margin-top: 4px; }
-    .empty a { color: #ffcc00; text-decoration: none; cursor: pointer; }
-    .pulse { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: #00e676; margin-right: 6px; vertical-align: middle; animation: pulse 2s infinite; }
-    .pulse.off { background: rgba(255,255,255,0.2); animation: none; }
-    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.15; } }
-    .footer { margin-top: 8px; font-size: 8px; color: rgba(255,255,255,0.12); text-align: right; }
-    .extra-toggle { display: none; margin-top: 10px; cursor: pointer; -webkit-app-region: no-drag; }
-    .extra-toggle-row { display: flex; justify-content: space-between; align-items: center; }
-    .extra-toggle-label { font-size: 9px; color: rgba(255,255,255,0.2); text-transform: uppercase; letter-spacing: 0.8px; }
-    .extra-toggle-label:hover { color: rgba(255,255,255,0.4); }
-    .extra-toggle-val { font-size: 9px; color: rgba(255,255,255,0.25); }
-    .extra-body { margin-top: 8px; }
-    .extra-body .bar-track { margin-bottom: 4px; }
-    .extra-sub { font-size: 8px; color: rgba(255,255,255,0.15); }
+
+    /* ---- header ---- */
+    .hdr { display:flex; align-items:center; gap:7px; margin-bottom:11px;
+           padding-right:52px; }   /* clearance for the fixed controls */
+    .live-dot { width:5px; height:5px; border-radius:50%; background:var(--live); flex:none;
+                animation: breathe 2.6s ease-in-out infinite; }
+    .live-dot.off { background:var(--text-low); animation:none; }
+    @keyframes breathe { 0%,100%{opacity:1} 50%{opacity:.25} }
+    .who { font-size:10.5px; color:var(--text-mid); flex:0 1 auto; min-width:0;
+           overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .plan { font-size:8.5px; font-weight:600; letter-spacing:.5px; text-transform:uppercase;
+            color:var(--accent); border:1px solid rgba(217,119,87,.32);
+            padding:1.5px 5px; border-radius:4px; flex:none;
+            margin-right:auto; }   /* sits beside the name, not adrift mid-header */
+    .dot { width:9px; height:9px; border-radius:50%; cursor:pointer; opacity:.72;
+           transition: opacity .15s, box-shadow .15s; }
+    .dot:hover { opacity:1; }
+    .dot-lock  { background:#5fb98a; }
+    .dot-lock.on { opacity:1; box-shadow:0 0 0 2px rgba(95,185,138,.28); }
+    .dot-mini  { background:#d9a441; }
+    .dot-mini.on { opacity:1; box-shadow:0 0 0 2px rgba(217,164,65,.28); }
+    .dot-close { background:#d95f57; }
+
+    /* ---- hero ---- */
+    .hero { cursor:pointer; margin-bottom:13px; }
+    .hero-val { font-size:29px; font-weight:600; color:var(--text); line-height:1.04;
+                letter-spacing:-.8px; }
+    .hero-sub { font-size:9.5px; color:var(--text-low); margin-top:3px; }
+    .hero:hover .hero-sub { color:var(--text-mid); }
+
+    /* ---- quota rows ---- */
+    .row { margin-bottom:10px; }
+    .row-top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; }
+    .row-label { font-size:10px; color:var(--text-mid); }
+    .row-val { font-size:14px; font-weight:600; color:var(--text); letter-spacing:-.2px; }
+    .track { height:4px; background:var(--track); border-radius:3px; overflow:hidden; }
+    .fill { height:100%; border-radius:3px;
+            transition: width .7s cubic-bezier(.4,0,.2,1), background-color .7s ease; }
+    .row-sub { font-size:8.5px; color:var(--text-low); margin-top:4px; }
+
+    .hair { height:1px; background:var(--hair); margin:11px 0; }
+
+    /* ---- by model ---- */
+    .sec-label { font-size:8.5px; text-transform:uppercase; letter-spacing:1.4px;
+                 color:var(--text-low); margin-bottom:8px; }
+    .m-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+    .m-name { font-size:10px; color:var(--text-mid); width:64px; flex:none;
+              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .m-track { flex:1; display:block; height:3px; background:var(--track);
+               border-radius:2px; overflow:hidden; }
+    .m-fill { display:block; height:100%; border-radius:2px; background:var(--accent-lo);
+              transition: width .6s cubic-bezier(.4,0,.2,1); }
+    .m-fill.top { background:var(--accent); }
+    .m-val { font-size:9.5px; color:var(--text-mid); width:52px; text-align:right; flex:none; }
+
+    /* ---- 30-day bars + lifetime ---- */
+    .spark { display:flex; align-items:flex-end; gap:1.5px; height:26px; margin-bottom:6px; }
+    .bar { flex:1; background:var(--accent-lo); border-radius:1px; min-height:1px; }
+    .bar.today { background:var(--accent); }
+    .spark-foot { display:flex; justify-content:space-between; align-items:baseline; }
+    .spark-foot .l { font-size:8.5px; color:var(--text-low); }
+    .spark-foot .r { font-size:10px; color:var(--text-mid); }
+    .life { display:flex; justify-content:space-between; align-items:baseline; margin-top:9px; }
+    .life .l { font-size:8.5px; color:var(--text-low); }
+    .life .r { font-size:12px; color:var(--text); font-weight:600; letter-spacing:-.2px; }
+
+    /* Landscape: reflow into two columns rather than shrinking one tall column
+       into illegibility. Quota stays in the left column where it reads first. */
+    #inner.wide #body { display:grid; grid-template-columns: 1fr 1fr; gap:0 22px; align-items:start; }
+    #inner.wide .col-a, #inner.wide .col-b { min-width:0; }
+    #inner.wide .col-b > .hair:first-child { display:none; }
+    #inner.wide .hero { margin-bottom:14px; }
+
+    /* The strip has no column structure to breathe around, so it sits closer
+       to the edges than the tall layout does. */
+    #inner.tight { padding-top:11px; padding-bottom:10px; }
+
+    .empty { text-align:center; padding:22px 4px; }
+    .empty .h { font-size:11.5px; color:var(--text-mid); font-weight:600; margin-bottom:6px; }
+    .empty .b { font-size:9.5px; color:var(--text-low); line-height:1.65; }
   </style>
 </head>
 <body>
   <div id="hud">
-    <div class="header">
-      <div class="title"><span class="pulse" id="pulse"></span>HUD for Claude</div>
-      <div class="controls no-drag">
-        <div class="dot dot-hide" id="btnHide" title="Ghost mode"></div>
-        <div class="dot dot-close" id="btnClose" title="Quit"></div>
-      </div>
+    <div class="ctl no-drag">
+      <div class="dot dot-lock"  id="btnLock"  title="Keep fully opaque"></div>
+      <div class="dot dot-mini"  id="btnMini"  title="Compact mode"></div>
+      <div class="dot dot-close" id="btnClose" title="Quit"></div>
     </div>
-    <div id="stats">
-      <div class="empty">
-        <div class="headline">Waiting for data…</div>
-        <div>Open Chrome and sign in to claude.ai</div>
-        <div class="hint">Right-click for settings</div>
+    <div id="inner">
+      <div class="hdr">
+        <div class="live-dot off" id="liveDot"></div>
+        <div class="who" id="who">connecting…</div>
+        <div class="plan" id="plan" style="display:none"></div>
       </div>
-    </div>
-    <div class="footer" id="updatedAt"></div>
-    <div class="extra-toggle" id="extraToggle">
-      <div class="divider"></div>
-      <div class="extra-toggle-row" id="extraToggleRow">
-        <span class="extra-toggle-label" id="extraToggleLabel">▸ Extra usage</span>
-        <span class="extra-toggle-val" id="extraToggleVal"></span>
-      </div>
-      <div class="extra-body" id="extraBody" style="display:none">
-        <div class="bar-track"><div class="bar-fill" id="extraBar" style="width:0%"></div></div>
-        <div class="extra-sub" id="extraSub"></div>
+      <div id="body">
+        <div class="empty">
+          <div class="h">Reading your usage…</div>
+          <div class="b">Scanning local Claude Code history</div>
+        </div>
       </div>
     </div>
   </div>
 
   <script>
-    const hud = document.getElementById('hud');
-    const pulse = document.getElementById('pulse');
+    const hud   = document.getElementById('hud');
+    const inner = document.getElementById('inner');
+    const liveDot = document.getElementById('liveDot');
 
-    let extensionConnected = false;
-    let lastDataAt = 0;
+    let state = { quota: null, local: null, profile: null, quotaStale: false };
+    let heroMode = 'usd';     // 'usd' | 'tokens'
+    let compact  = false;     // amber button: quota bars only
+    let locked   = false;     // green button: never fade out
 
-    function colorClass(pct) {
-      if (pct >= 80) return 'red';
-      if (pct >= 50) return 'yellow';
-      return 'green';
+    const fmtTokens = n =>
+      n >= 1e9 ? (n/1e9).toFixed(1)+'B' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' :
+      n >= 1e3 ? Math.round(n/1e3)+'K'  : String(n||0);
+    const fmtUSD = n =>
+      n >= 1000 ? '$'+n.toLocaleString('en-US',{maximumFractionDigits:0}) : '$'+(n||0).toFixed(2);
+
+    function prettyModel(id) {
+      if (!id) return 'unknown';
+      const s = id.replace(/^claude-/, '').replace(/-\d{8}$/, '').split('-');
+      const fam = s.shift() || '', ver = s.join('.');
+      return fam.charAt(0).toUpperCase() + fam.slice(1) + (ver ? ' ' + ver : '');
+    }
+    function shortDay(key) {
+      const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const p = String(key).split('-');
+      return p.length === 3 ? M[parseInt(p[1],10)-1] + ' ' + parseInt(p[2],10) : key;
     }
 
-    function renderBar(label, pct, sub) {
-      const c = colorClass(pct);
-      return `<div class="stat"><div class="stat-row"><span class="stat-label">${label}</span><span class="stat-value ${c}">${pct}%</span></div><div class="bar-track"><div class="bar-fill bar-${c}" style="width:${pct}%"></div></div>${sub ? `<div class="reset-text">${sub}</div>` : ''}</div>`;
+    /* Fuller = redder, continuously. Starts at the coral accent rather than a
+       cool colour, and slides toward red as the quota fills. */
+    function barColor(pct, severity) {
+      let t = Math.min(1, Math.max(0, (pct || 0) / 100));
+      if (severity === 'critical') t = Math.max(t, 0.95);
+      else if (severity === 'warning') t = Math.max(t, 0.72);
+      const ease = t * t;                       // stay coral longer, redden late
+      const h = 17 - 14 * ease;
+      const s = 60 + 14 * ease;
+      const l = 60 -  7 * ease;
+      return `hsl(${h.toFixed(1)} ${s.toFixed(0)}% ${l.toFixed(0)}%)`;
     }
 
-    function renderEmptyState() {
-      const stats = document.getElementById('stats');
-      if (!extensionConnected) {
-        stats.innerHTML = `
-          <div class="empty">
-            <div class="headline">Extension not connected</div>
-            <div>Install the Chrome extension and make sure Chrome is running.</div>
-            <div class="hint">Right-click for help</div>
+    function untilText(iso) {
+      if (!iso) return null;
+      const ms = Date.parse(iso) - Date.now();
+      if (!(ms > 0)) return null;
+      const m = Math.floor(ms/60000), h = Math.floor(m/60), d = Math.floor(h/24);
+      if (d >= 1) return `in ${d}d ${h%24}h`;
+      if (h >= 1) return `in ${h}h ${m%60}m`;
+      return `in ${m}m`;
+    }
+
+    function quotaRow(label, q, extraSub) {
+      if (!q || q.percent == null) return '';
+      const bits = [];
+      const u = untilText(q.resetsAt);
+      if (u) bits.push('resets ' + u);
+      if (extraSub) bits.push(extraSub);
+      return `<div class="row">
+        <div class="row-top"><span class="row-label">${label}</span>
+          <span class="row-val num">${q.percent}%</span></div>
+        <div class="track"><div class="fill" style="width:${Math.min(100,q.percent)}%;
+          background:${barColor(q.percent, q.severity)}"></div></div>
+        ${bits.length ? `<div class="row-sub">${bits.join(' · ')}</div>` : ''}
+      </div>`;
+    }
+
+    function render() {
+      const { quota, local, profile } = state;
+      const body = document.getElementById('body');
+      const inner = document.getElementById('inner');
+
+      if (!local && !quota) {
+        inner.classList.remove('wide');
+        body.innerHTML = `<div class="empty"><div class="h">No usage data yet</div>
+          <div class="b">Sign in to Claude Code once,<br>then this fills in automatically.</div></div>`;
+        syncLayout(); return;
+      }
+
+      document.getElementById('who').textContent =
+        (profile && (profile.displayName || profile.email)) || 'local';
+      const planEl = document.getElementById('plan');
+      const plan = (profile && profile.plan) || (quota && quota.plan);
+      if (plan) { planEl.textContent = plan; planEl.style.display = ''; }
+      liveDot.classList.toggle('off', !quota || state.quotaStale);
+      liveDot.title = state.quotaStale
+        ? 'Quota is stale — open Claude Code once to renew its token'
+        : 'Live';
+
+      const lean = compact || autoTrim;   // hide secondary blocks
+      const wide = wideMode && !compact;
+      inner.classList.toggle('wide', wide);
+      inner.classList.toggle('tight', lean);
+      document.getElementById('btnMini').classList.toggle('on', lean);
+
+      // ---- hero ----
+      let hero = '';
+      if (local && !lean) {
+        const t = local.today;
+        hero = `<div class="hero no-drag" id="hero">
+          <div class="hero-val num">${heroMode==='usd' ? fmtUSD(t.usd) : fmtTokens(t.tokens)}</div>
+          <div class="hero-sub">today · ${heroMode==='usd'
+            ? fmtTokens(t.tokens)+' tokens' : fmtUSD(t.usd)+' at API rates'}</div>
+        </div>`;
+      }
+
+      // ---- quota ----
+      let quotaHtml = '';
+      if (quota) {
+        quotaHtml += quotaRow('current session', quota.session);
+        const sub = [];
+        if (local && !lean) sub.push(fmtUSD(local.week.usd)+' used');
+        if (state.quotaStale && quota.fetchedAt) {
+          const d = new Date(quota.fetchedAt);
+          sub.push('as of ' + String(d.getHours()).padStart(2,'0')
+                            + ':' + String(d.getMinutes()).padStart(2,'0'));
+        }
+        quotaHtml += quotaRow('weekly · all models', quota.weeklyAll,
+                              sub.length ? sub.join(' · ') : null);
+      }
+
+      // ---- by model ----
+      let models = '';
+      if (!lean && local && local.byModel && local.byModel.length) {
+        const rows = local.byModel.slice(0, 5);
+        const peak = Math.max(...rows.map(r => r.usd)) || 1;
+        models += `<div class="hair"></div><div class="sec-label">by model · 7 days</div>`;
+        rows.forEach((r, i) => {
+          models += `<div class="m-row">
+            <span class="m-name">${prettyModel(r.model)}</span>
+            <span class="m-track"><span class="m-fill ${i===0?'top':''}"
+              style="width:${Math.max(2, 100*r.usd/peak)}%"></span></span>
+            <span class="m-val num">${heroMode==='usd' ? fmtUSD(r.usd) : fmtTokens(r.tokens)}</span>
           </div>`;
-      } else {
-        stats.innerHTML = `
-          <div class="empty">
-            <div class="headline">Waiting for data…</div>
-            <div>Sign in to <a id="openClaude">claude.ai</a> in Chrome</div>
-            <div class="hint">Data refreshes every 30s</div>
-          </div>`;
-        const a = document.getElementById('openClaude');
-        if (a) a.addEventListener('click', () => {
-          // Just a hint — extension auto-opens the settings tab
         });
       }
+
+      // ---- 30 day bars ----
+      let spark = '';
+      if (!lean && local && local.series && local.series.length) {
+        const ser = local.series, peak = Math.max(...ser.map(d => d.usd)) || 1;
+        spark += `<div class="hair"></div><div class="spark">`;
+        ser.forEach((d, i) => {
+          spark += `<div class="bar ${i===ser.length-1?'today':''}"
+                     style="height:${Math.max(1, Math.round(26*d.usd/peak))}px"
+                     title="${d.day} · ${fmtUSD(d.usd)}"></div>`;
+        });
+        spark += `</div><div class="spark-foot"><span class="l">30 days</span>
+          <span class="r num">${heroMode==='usd'
+            ? fmtUSD(local.month.usd) : fmtTokens(local.month.tokens)}</span></div>`;
+      }
+
+      // ---- lifetime ----
+      let life = '';
+      if (!lean && local && local.allTime) {
+        const a = local.allTime;
+        life = `<div class="hair"></div><div class="life">
+          <span class="l">lifetime${a.firstDay ? ' · since '+shortDay(a.firstDay) : ''}</span>
+          <span class="r num">${heroMode==='usd' ? fmtUSD(a.usd) : fmtTokens(a.tokens)}</span>
+        </div>`;
+      }
+
+      body.innerHTML = wide
+        ? `<div class="col-a">${hero}${quotaHtml}</div>
+           <div class="col-b">${models}${spark}${life}</div>`
+        : hero + quotaHtml + models + spark + life;
+
+      syncLayout();
+      const heroEl = document.getElementById('hero');
+      if (heroEl) heroEl.addEventListener('click', () => {
+        heroMode = heroMode === 'usd' ? 'tokens' : 'usd';
+        render();
+      });
     }
 
-    // --- Extra usage section ---
-    const BASE_HEIGHT = 230;
-    const EXTRA_HEIGHT = 72;
-    let extraExpanded = false;
-    let hasExtra = false;
+    const BASE_TALL = 300, BASE_WIDE = 540;
+    let wideMode = false, autoTrim = false, lastKey = '', lastAsk = 0, relayoutDepth = 0;
+    let expandOnce = false;   // an explicit expand outranks auto-trim for one pass
 
-    function renderExtra(eu) {
-      if (!eu) return;
-      hasExtra = true;
-      const toggle = document.getElementById('extraToggle');
-      const val = document.getElementById('extraToggleVal');
-      const bar = document.getElementById('extraBar');
-      const sub = document.getElementById('extraSub');
-      toggle.style.display = 'block';
-      const c = colorClass(eu.percent);
-      val.textContent = `$${eu.spent.toFixed(0)} / $${eu.limit}`;
-      bar.style.width = eu.percent + '%';
-      bar.className = `bar-fill bar-${c}`;
-      const parts = [];
-      if (eu.balance != null) parts.push(`$${eu.balance.toFixed(2)} left`);
-      if (eu.reset) parts.push(`Resets ${eu.reset}`);
-      sub.textContent = parts.join(' · ');
+    /* Breakpoint on WIDTH, not aspect ratio. Height follows width to preserve the
+       design proportions, so the ratio is effectively pinned (~1.08 at every
+       size) and a ratio test could never fire no matter how wide you dragged.
+       Hysteresis keeps a window parked on the boundary from oscillating. */
+    function wantWide(w, h) {
+      if (compact) return false;
+      const ratio = w / Math.max(1, h);
+      // Two ways in: the window is simply wide, or it has been squashed flat and
+      // still has enough width to carry two columns. Below ~330px a split leaves
+      // columns too narrow to read, so squashing there just scales instead.
+      // Exit thresholds sit lower than entry so a window resting on the boundary
+      // does not flicker between layouts.
+      return wideMode
+        ? (w > 400 || (w >= 240 && ratio > 1.05))
+        : (w > 450 || (w >= 250 && ratio > 1.28));
     }
 
-    document.getElementById('extraToggleRow').addEventListener('click', () => {
-      if (!hasExtra) return;
-      extraExpanded = !extraExpanded;
-      document.getElementById('extraBody').style.display = extraExpanded ? 'block' : 'none';
-      document.getElementById('extraToggleLabel').textContent = (extraExpanded ? '▾' : '▸') + ' Extra usage';
-      window.hudAPI.resizeWindow(BASE_HEIGHT + (extraExpanded ? EXTRA_HEIGHT : 0));
-    });
-
-    function render(data) {
-      const stats = document.getElementById('stats');
-      const footer = document.getElementById('updatedAt');
-      if (!data || !data.found) {
-        renderEmptyState();
+    function syncLayout() {
+      const w = window.innerWidth  || BASE_TALL;
+      const h = window.innerHeight || 1;
+      if (relayoutDepth > 3) return;   // guard: a mode flip must settle in one pass
+      const want = wantWide(w, h);
+      // Narrow AND short: splitting would give unreadable columns and scaling
+      // would shrink the text away, so drop to the essentials instead. Hysteresis
+      // (250 in / 300 out) keeps the boundary from flickering.
+      // An explicit expand must win: auto-trim shrinks the window, which then
+      // satisfies its own trigger, so without this override the panel can never
+      // be re-opened at a small size.
+      const wantTrim = expandOnce
+        ? false
+        : (!want && !compact && (autoTrim ? h < 300 : h < 250));
+      if (want !== wideMode || wantTrim !== autoTrim) {
+        wideMode = want;
+        autoTrim = wantTrim;
+        relayoutDepth++;
+        try { render(); } finally { relayoutDepth--; }   // re-enters with new DOM
         return;
       }
-      lastDataAt = Date.now();
-      let html = '';
-      if (data.session != null) html += renderBar('Session', data.session, data.session_reset ? `Resets in ${data.session_reset}` : null);
-      if (data.weekly_all != null) { html += '<div class="divider"></div>'; html += renderBar('Weekly · All', data.weekly_all, data.weekly_reset || null); }
-      if (data.weekly_sonnet != null) html += renderBar('Weekly · Sonnet', data.weekly_sonnet, null);
-      if (data.daily_routines) { html += '<div class="divider"></div>'; html += renderBar(`Routines ${data.daily_routines.used}/${data.daily_routines.total}`, data.daily_routines.percent || 0, null); }
-      stats.innerHTML = html || `<div class="empty"><div class="headline">No data found</div><div>Open your claude.ai usage page</div></div>`;
-      if (data.timestamp) {
-        const ago = Math.round((Date.now() - data.timestamp) / 1000);
-        footer.textContent = ago < 60 ? `${ago}s ago` : `${Math.round(ago/60)}m ago`;
+
+      /* Landscape lays out AT the window's own width, so columns get real space
+         instead of a 540px design being shrunk to fit. Scaling then only ever
+         kicks in vertically, when the window is too short for the content. */
+      /* Every mode lays out at the window's own width within its usable band, so
+         text keeps its size and the content reaches the edges. Scaling is the
+         fallback for windows outside the band, not the primary mechanism —
+         magnifying a fixed design is what made padding look bloated. */
+      const base = wideMode ? Math.max(380, Math.min(w, 1000))
+              : compact ? Math.max(230, Math.min(w, 900))
+              :           Math.max(228, Math.min(w, 460));
+
+      // Side padding tracks the width: generous when there is room, tight when
+      // the panel is small, so the ratio of frame to content stays constant.
+      const padX = Math.round(Math.max(9, Math.min(16, base * 0.046)));
+      const padY = Math.round(Math.max(9, Math.min(14, base * 0.042)));
+      document.documentElement.style.setProperty('--pad-x', padX + 'px');
+      document.documentElement.style.setProperty('--pad-y', padY + 'px');
+      document.documentElement.style.setProperty('--base-w', base + 'px');
+      const natural = inner.offsetHeight || 1;   // read forces reflow at the new width
+      const z = Math.min(w / base, h / natural);
+      document.documentElement.style.setProperty('--z', z);
+
+      // Restore the design aspect on a WIDTH drag only. Doing it on a layout flip
+      // too would yank back a height the user just dragged, which is what makes
+      // squashing feel like it fights you.
+      if (expandOnce) {
+        // Grow to fit the restored content, otherwise the window keeps the
+        // height auto-trim left behind and immediately re-trims.
+        expandOnce = false;
+        const target = Math.ceil(natural * (w / base));
+        lastKey = String(w); lastAsk = target;
+        if (target > 40) window.hudAPI.resizeWindow(target);
+        return;
       }
-      if (data.extra_usage) renderExtra(data.extra_usage);
+      const key = String(w);
+      if (key !== lastKey) {
+        lastKey = key;
+        const target = Math.ceil(natural * (w / base));
+        if (target > 40 && Math.abs(target - lastAsk) > 2) {
+          lastAsk = target;
+          window.hudAPI.resizeWindow(target);
+        }
+      }
     }
-
-    // Refresh "X s ago" footer every 10s so it stays accurate
-    setInterval(() => {
-      const footer = document.getElementById('updatedAt');
-      if (lastDataAt > 0) {
-        const ago = Math.round((Date.now() - lastDataAt) / 1000);
-        footer.textContent = ago < 60 ? `${ago}s ago` : `${Math.round(ago/60)}m ago`;
-      }
-    }, 10000);
-
-    let hidden = false;
+    window.addEventListener('resize', syncLayout);
 
     document.getElementById('btnClose').addEventListener('click', () => window.hudAPI.close());
-    document.getElementById('btnHide').addEventListener('click', () => {
-      hidden = !hidden;
-      hud.classList.toggle('hidden', hidden);
-      hud.classList.remove('hovered');
+    document.getElementById('btnMini').addEventListener('click', () => {
+      // The button means "toggle what I'm looking at". Auto-trim can put the
+      // panel in the lean state without the user asking, so pressing it then
+      // must expand rather than set a flag nobody can see.
+      if (compact || autoTrim) {
+        compact = false;
+        autoTrim = false;
+        expandOnce = true;
+      } else {
+        compact = true;
+      }
+      lastKey = '';
+      render();
     });
-
-    // Right-click anywhere on HUD → native context menu
+    document.getElementById('btnLock').addEventListener('click', (e) => {
+      locked = !locked;
+      e.currentTarget.classList.toggle('on', locked);
+      window.hudAPI.setOpacityLock(locked);
+    });
     document.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       window.hudAPI.showContextMenu();
     });
 
-    // Hover from main process cursor polling
-    window.hudAPI.onHoverChange((over) => {
-      if (hidden) return;
-      hud.classList.toggle('hovered', over);
+    window.hudAPI.onUsageUpdate((p) => {
+      if (!p) return;
+      if (p.quota   !== undefined) state.quota   = p.quota;
+      if (p.local   !== undefined) state.local   = p.local;
+      if (p.profile !== undefined) state.profile = p.profile;
+      if (p.quotaStale !== undefined) state.quotaStale = p.quotaStale;
+      render();
     });
-
-    // Connection state from main process
-    window.hudAPI.onConnectionChange((connected) => {
-      extensionConnected = connected;
-      pulse.classList.toggle('off', !connected);
-      if (!connected) renderEmptyState();
-    });
-
-    window.hudAPI.onUsageUpdate(render);
     window.hudAPI.getData();
-    renderEmptyState();
+    setInterval(render, 60000);
   </script>
 </body>
 </html>
