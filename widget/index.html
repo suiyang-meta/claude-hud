@@ -361,7 +361,7 @@
 
     const BASE_TALL = 300, BASE_WIDE = 540;
     let mode = 'full';   // 'full' | 'wide' | 'trim'
-    let lastKey = '', lastAsk = 0, relayoutDepth = 0;
+    let lastKey = '', lastAsk = 0, relayoutDepth = 0, lastMinH = 0;
     let expandOnce = false;   // an explicit expand outranks auto-trim for one pass
 
     /* Pick the richest form that FITS, never the one an aspect ratio suggests.
@@ -422,6 +422,13 @@
 
       // Side padding tracks the width: generous when there is room, tight when
       // the panel is small, so the ratio of frame to content stays constant.
+      /* The trimmed layout is the leanest the panel ever gets and its intrinsic
+         height is constant (measured: 146px — a header and two bars, nothing
+         that wraps). Publishing it as the window's minimum height means the
+         panel can never be dragged into a size that squashes even that. */
+      const minH = Math.ceil(146 * (w / base));
+      if (minH !== lastMinH) { lastMinH = minH; window.hudAPI.setMinHeight(minH); }
+
       const padX = Math.round(Math.max(9, Math.min(16, base * 0.046)));
       const padY = Math.round(Math.max(9, Math.min(14, base * 0.042)));
       document.documentElement.style.setProperty('--pad-x', padX + 'px');

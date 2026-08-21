@@ -424,6 +424,21 @@ ipcMain.on('close-app', () => app.quit());
 ipcMain.on('get-data', (event) => {
   event.reply('usage-update', usageState);
 });
+// Floor the window at the height its leanest layout needs, so dragging shorter
+// stops at that point instead of scaling the content down. The renderer knows
+// the number because only it has measured the layout.
+let lastMinHeight = 0;
+ipcMain.on('set-min-height', (event, height) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const h = Math.max(80, Math.round(height || 0));
+  if (h === lastMinHeight) return;
+  lastMinHeight = h;
+  const [minW] = mainWindow.getMinimumSize();
+  mainWindow.setMinimumSize(minW, h);
+  const b = mainWindow.getBounds();
+  if (b.height < h) mainWindow.setBounds({ ...b, height: h });
+});
+
 ipcMain.on('set-opacity-lock', (event, locked) => {
   opacityLocked = !!locked;
   refreshOpacity();
