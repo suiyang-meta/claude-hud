@@ -99,9 +99,27 @@ By default, HUD for Claude launches automatically when you log into your compute
 
 ## How it actually works (if you're curious)
 
-The Chrome extension quietly keeps a tab open on your claude.ai usage page, refreshes it every 30 seconds, and reads the four usage percentages off that page. It pushes those numbers to the desktop app over localhost (port 27843 — your own computer, nothing touches the internet). The desktop app draws them as color-coded bars.
+The desktop app reads two things that are already on your machine.
 
-Your data never leaves your computer.
+**Your plan's allowance.** It borrows the credential Claude Code keeps in your macOS
+keychain and asks Anthropic's API about your own account — session and weekly
+percentages, and when they reset. macOS will ask your permission the first time; click
+"Always Allow". Because Anthropic replaces that credential whenever it is renewed, the
+app writes the replacement back to the same keychain entry — otherwise Claude Code would
+get signed out.
+
+**Your token usage.** It scans your local Claude Code transcripts (`~/.claude/projects/`)
+for each call's timestamp, model, and token counts, then weights them by Anthropic's
+cache pricing so the dollar figure means "what this would cost at API list price". The
+text of your prompts and Claude's replies is never read.
+
+**The Chrome extension** is a fallback for when the keychain route isn't available (not
+on macOS, or you declined permission). When active it reads the usage page and pushes the
+numbers to the app over localhost port 27843.
+
+Nothing is sent to the developer or any third party — no servers, no analytics, no
+telemetry. The one host the app contacts is `api.anthropic.com`, with your own
+credential, about your own account.
 
 ---
 

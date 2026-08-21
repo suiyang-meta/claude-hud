@@ -32,52 +32,82 @@
 <body>
 
 <h1>HUD for Claude — Privacy Policy</h1>
-<div class="updated">Last updated: May 26, 2026</div>
+<p class="updated">Last updated: August 21, 2026</p>
 
-<p>HUD for Claude is a two-part product: a Chrome browser extension and a desktop app (macOS or Windows). Both are built by a single independent developer. This policy explains exactly what data is read, where it goes, and what is stored.</p>
+<p>HUD for Claude is a desktop app (macOS) with an optional Chrome extension. Both are
+built by a single independent developer. This policy explains exactly what is read,
+where it goes, and what is stored.</p>
 
 <h2>Short version</h2>
-<p>Your data never leaves your computer. There are no servers, no analytics, no accounts, no tracking. The extension reads the usage indicators shown on your claude.ai usage page and sends them to the desktop app running on your own machine via localhost. That's it.</p>
+<p>No data is sent to the developer or to any third party. There are no servers, no
+analytics, no accounts, no tracking. The app reads files already on your computer, and
+makes one kind of network request: asking Anthropic about <em>your own</em> account,
+using <em>your own</em> credential that Claude Code already stored on this machine.</p>
 
-<h2>What the extension reads</h2>
-<p>The numbers shown on your claude.ai usage page &mdash; i.e. how much of your plan's allowance you've used:</p>
+<h2>What the desktop app reads</h2>
 <ul>
-  <li><strong>Percentage indicators:</strong> current session, weekly all-models, weekly Sonnet-only.</li>
-  <li><strong>Count indicator:</strong> daily routine runs (e.g. "5 / 100").</li>
-  <li><strong>Currency-denominated indicator:</strong> extra usage, if your plan has it &mdash; how much you've spent against your monthly spend limit, your current balance, and the reset date. This is the same kind of usage indicator as the others, just measured in dollars instead of percent or count, because that's how claude.ai displays the additional-usage allowance. It is <em>not</em> billing or payment data.</li>
-  <li><strong>Reset timestamps:</strong> when each of the above resets.</li>
-</ul>
-<p>The extension does <strong>not</strong> read:</p>
-<ul>
-  <li>Any of your conversations or prompts.</li>
-  <li>Your account information, email, or name.</li>
-  <li>Your payment method, credit card, invoices, or billing address.</li>
-  <li>Any other page on claude.ai besides the usage page.</li>
-  <li>Any other website.</li>
-</ul>
-
-<h2>Where the data goes</h2>
-<p>The scraped numbers are sent to <code>ws://localhost:27843</code> — a WebSocket server running on <em>your own computer</em>, started by the HUD for Claude desktop app. Nothing is sent over the internet. Nothing is sent to the developer or any third party.</p>
-
-<h2>What is stored</h2>
-<ul>
-  <li><strong>In the browser:</strong> The latest usage numbers are cached in <code>chrome.storage.local</code> so the extension popup can display them instantly when clicked. This cache is overwritten every 30 seconds and never leaves your browser profile.</li>
-  <li><strong>On your computer:</strong> The desktop app stores a tiny preferences file (your "Launch at Login" choice) in the OS's standard app-data directory — <code>~/Library/Application Support/HUD for Claude/</code> on Mac, <code>%APPDATA%\HUD for Claude\</code> on Windows. No usage data is persisted to disk.</li>
+  <li><strong>Your Claude Code credential, from the macOS keychain</strong>
+      (<code>Claude Code-credentials</code>). macOS will ask your permission the first
+      time. The app uses it only to call Anthropic's own API on your behalf, and never
+      writes it to a file, a log, or anywhere off this machine.</li>
+  <li><strong>Your account name, email, and plan tier</strong> — returned by Anthropic
+      when the app asks who the credential belongs to, so the panel can show whose usage
+      it is displaying. Shown on your screen only.</li>
+  <li><strong>Your plan's usage allowance</strong> — session and weekly percentages, and
+      when they reset.</li>
+  <li><strong>Your local Claude Code transcripts</strong>
+      (<code>~/.claude/projects/</code>) — but only each API call's timestamp, model
+      name, and token counts. <strong>The text of your prompts and Claude's replies is
+      never read, stored, or transmitted.</strong></li>
 </ul>
 
-<h2>Third parties</h2>
-<p>None. No analytics SDKs, no crash reporters, no ad networks, no remote APIs.</p>
+<h2>What the desktop app writes</h2>
+<ul>
+  <li><strong>Back to the keychain:</strong> Anthropic issues a new credential each time
+      the old one is renewed and invalidates the previous one, so the app must store the
+      replacement or Claude Code would be signed out. It writes back only that renewed
+      credential, to the same entry it read from, and verifies the write.</li>
+  <li><strong>A local cache</strong> at
+      <code>~/Library/Application Support/claude-hud/usage-cache.json</code> — token
+      counters per day and model, so the app doesn't rescan every file each time. It
+      holds numbers only: no prompts, no replies, no credentials.</li>
+  <li><strong>A preferences file</strong> — your "Launch at Login" choice, pet settings.</li>
+</ul>
+
+<h2>Network requests</h2>
+<p>The app talks to exactly one host: <code>api.anthropic.com</code>, to read your own
+account's usage allowance and to renew your own credential. Nothing is sent to the
+developer. There are no analytics SDKs, crash reporters, ad networks, or third-party
+APIs of any kind.</p>
+
+<h2>The Chrome extension (optional)</h2>
+<p>The extension is now a fallback, used only when the keychain route is unavailable
+(non-macOS, or permission declined). When active it reads the usage percentages shown on
+your claude.ai usage page and sends them to the desktop app over
+<code>ws://localhost:27843</code> — a server on your own computer. It reads no other
+page, and none of your conversations. Its cache lives in
+<code>chrome.storage.local</code> and never leaves your browser profile.</p>
+
+<h2>What is never read</h2>
+<ul>
+  <li>Your conversations or prompts, in the browser or on disk.</li>
+  <li>Your payment method, card, invoices, or billing address.</li>
+  <li>Any website other than claude.ai's usage page (extension only, when in use).</li>
+</ul>
 
 <h2>Children</h2>
-<p>HUD for Claude is not directed at children under 13 and does not knowingly collect any data from them.</p>
+<p>HUD for Claude is not directed at children under 13 and does not knowingly collect any
+data from them.</p>
 
 <h2>Changes to this policy</h2>
-<p>If the product ever starts collecting different data, this policy will be updated and the "Last updated" date at the top of this page will change. Material changes will also be announced on the product page.</p>
+<p>If the product ever starts reading different data, this policy will be updated and the
+"Last updated" date at the top of this page will change.</p>
 
 <h2>Contact</h2>
 <p>Questions? Email <a href="mailto:metasui1491@gmail.com">metasui1491@gmail.com</a>.</p>
 
-<p style="margin-top: 60px; font-size: 13px; color: #888;">HUD for Claude is an independent product and is not affiliated with, endorsed by, or sponsored by Anthropic.</p>
+<p style="margin-top:40px;color:#888;font-size:14px">HUD for Claude is an independent
+product and is not affiliated with, endorsed by, or sponsored by Anthropic.</p>
 
 </body>
 </html>

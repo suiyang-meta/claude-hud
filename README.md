@@ -46,12 +46,25 @@ Deliberate. The Releases page intentionally doesn't attach `.dmg` / `.exe` binar
 
 ## How it works
 
-Two pieces talk to each other on `localhost`:
+The desktop widget (Electron) reads two things that are already on your machine:
 
-1. **Chrome extension** quietly keeps a tab open on your claude.ai usage page, refreshes it every 30 seconds, and scrapes the four usage percentages off the rendered page.
-2. **Desktop widget** (Electron) runs a local WebSocket server on port 27843 and receives those numbers — then draws them as color-coded bars (green &lt;50%, yellow 50–79%, red 80%+).
+1. **Your plan's allowance** — it borrows the credential Claude Code keeps in your macOS
+   keychain and asks Anthropic's API about your own account: session and weekly
+   percentages, and when they reset. macOS asks your permission the first time.
+2. **Your token usage** — it scans your local Claude Code transcripts
+   (`~/.claude/projects/`) for each call's timestamp, model, and token counts, and
+   weights them by Anthropic's cache pricing so the dollar figure means "what this would
+   cost at API list price". **Prompt and reply text is never read.**
 
-Nothing leaves your machine. No accounts, no servers, no analytics, no telemetry. The extension can read only your claude.ai usage page — not your conversations.
+The **Chrome extension** is now a fallback for when the keychain route is unavailable
+(non-macOS, or permission declined). When active it scrapes the usage page and sends the
+numbers to the widget over `ws://localhost:27843`.
+
+Requires Claude Code installed and signed in — the widget has no login of its own.
+
+The only host contacted is `api.anthropic.com`, with your own credential, about your own
+account. Nothing goes to the developer: no accounts, no servers, no analytics, no
+telemetry.
 
 Full privacy policy: [release-assets/privacy/privacy-policy.html](release-assets/privacy/privacy-policy.html) (or live at [suiyang-meta.github.io/claude-hud/privacy](https://suiyang-meta.github.io/claude-hud/privacy)).
 

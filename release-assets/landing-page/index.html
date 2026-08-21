@@ -277,14 +277,14 @@
       </div>
       <div class="feature">
         <div class="feature-title">Your data stays local</div>
-        <div class="feature-body">No servers, no analytics, no accounts. Everything happens on your machine over localhost.</div>
+        <div class="feature-body">No servers, no analytics, no accounts. It reads files already on your machine, and asks Anthropic only about your own account.</div>
       </div>
     </div>
   </section>
 
   <section>
     <h2>How it works</h2>
-    <p>HUD for Claude is two pieces: a <strong>desktop app</strong> (the floating window — Mac or Windows) and a <strong>Chrome extension</strong> (the data pipe). The extension quietly keeps a tab open on your claude.ai usage page, refreshes it every 30 seconds, reads the four usage numbers off the page, and pushes them to the desktop app over localhost port 27843.</p>
+    <p>HUD for Claude is two pieces: a <strong>desktop app</strong> (the floating window — Mac or Windows) and a <strong>Chrome extension</strong> (the data pipe). It borrows the credential Claude Code already stored on your Mac, and reads your local Claude Code usage page, refreshes it every 30 seconds, reads the four usage numbers off the page, and pushes them to the desktop app over localhost port 27843.</p>
     <p>Nothing ever touches the internet beyond Chrome → claude.ai, which was already happening anyway. Your conversations, prompts, and account data are never read.</p>
   </section>
 
