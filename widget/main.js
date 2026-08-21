@@ -6,9 +6,48 @@ const PetWindow = require('./pet/PetWindow');
 const PetLibrary = require('./pet/PetLibrary');
 const PetButton = require('./pet/PetButton');
 const codexAdapter = require('./pet/CodexPetAdapter');
+const OAuthUsage = require('./usage/OAuthUsage');
+const { LocalUsageScanner } = require('./usage/LocalUsage');
 
 let mainWindow;
-let latestData = null;
+// Quota now comes from Claude Code's own OAuth credential; the extension
+// WebSocket is kept only as a fallback for when that read fails.
+let usageState = { quota: null, local: null, profile: null, quotaStale: false };
+let extensionData = null;
+let scanner;
+
+// Fade uses the WINDOW's opacity, not CSS. Lowering CSS opacity over a vibrancy
+// window just lets the blur layer show through, which reads as "washed out
+// white" rather than transparent.
+const OPACITY_IDLE = 0.60;
+const OPACITY_FULL = 1.0;
+let opacityLocked = false;
+let opacityCurrent = OPACITY_IDLE;
+let opacityTarget = OPACITY_IDLE;
+let opacityTimer = null;
+
+function easeOpacityTo(target) {
+  opacityTarget = target;
+  if (opacityTimer) return;
+  opacityTimer = setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      clearInterval(opacityTimer); opacityTimer = null; return;
+    }
+    const delta = opacityTarget - opacityCurrent;
+    if (Math.abs(delta) < 0.008) {
+      opacityCurrent = opacityTarget;
+      mainWindow.setOpacity(opacityCurrent);
+      clearInterval(opacityTimer); opacityTimer = null;
+      return;
+    }
+    opacityCurrent += delta * 0.2;
+    mainWindow.setOpacity(opacityCurrent);
+  }, 16);
+}
+
+function refreshOpacity() {
+  easeOpacityTo((opacityLocked || isHovered) ? OPACITY_FULL : OPACITY_IDLE);
+}
 let wss;
 let isHovered = false;
 
@@ -140,16 +179,28 @@ function createWindow() {
   const { width: screenWidth } = screen.getPrimaryDisplay().workAreaSize;
 
   mainWindow = new BrowserWindow({
-    width: 278,
-    height: 230,
-    x: screenWidth - 295,
+    width: 264,
+    height: 392,
+    x: screenWidth - 282,
     y: 20,
     frame: false,
-    transparent: true,
+    // NOT transparent: a transparent window disables macOS roundedCorners, which
+    // leaves the native vibrancy layer square while CSS rounds only the DOM —
+    // that mismatch is what shows as chipped top corners. Letting the native
+    // corner radius clip every layer keeps them in register.
+    transparent: false,
+    backgroundColor: '#00000000',
+    roundedCorners: true,
     alwaysOnTop: true,
     resizable: true,
     skipTaskbar: true,
     hasShadow: true,
+    // Native frosted glass. The CSS fill is translucent so this shows through;
+    // macOS-only, and harmlessly ignored elsewhere.
+    vibrancy: 'under-window',
+    visualEffectState: 'active',
+    minWidth: 210,
+    maxWidth: 1000,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -157,6 +208,7 @@ function createWindow() {
     }
   });
 
+  mainWindow.setOpacity(OPACITY_IDLE);
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
   mainWindow.setAlwaysOnTop(true, 'floating', 1);
   mainWindow.setVisibleOnAllWorkspaces(true);
@@ -176,6 +228,7 @@ function createWindow() {
     if (overHud !== isHovered) {
       isHovered = overHud;
       mainWindow.webContents.send('hover-change', isHovered);
+      refreshOpacity();
     }
 
     // Pet button visibility: ONLY when cursor is in the edge-strip beside HUD
@@ -260,6 +313,85 @@ function showContextMenu() {
   if (mainWindow) menu.popup({ window: mainWindow });
 }
 
+
+// ---- Usage service ----
+// Two independent legs:
+//   quota  -> /api/oauth/usage, authorised by Claude Code's keychain credential
+//   local  -> ~/.claude/projects transcripts, scanned incrementally on disk
+// Neither sends anything off this machine.
+
+/** Pet speaks the old extension dialect; translate rather than touch pet code. */
+function toPetShape() {
+  const q = usageState.quota;
+  if (!q) return extensionData || { found: false };
+  return {
+    found: true,
+    session: q.session ? q.session.percent : 0,
+    weekly_all: q.weeklyAll ? q.weeklyAll.percent : 0,
+    extra_usage: q.extraUsage ? { percent: q.extraUsage.utilization } : null,
+  };
+}
+
+function pushUsage() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('usage-update', usageState);
+  }
+  if (petWindow) petWindow.updateUsage(toPetShape());
+}
+
+const QUOTA_INTERVAL = 75000;
+const QUOTA_BACKOFF_MAX = 900000;   // 15 min
+let quotaBackoff = 0;
+let quotaTimer = null;
+
+async function refreshQuota() {
+  try {
+    usageState.quota = await OAuthUsage.fetchQuota();
+    usageState.quotaStale = false;
+    quotaBackoff = 0;
+  } catch (e) {
+    // Two failure modes, same response: keep the last good reading and mark it
+    // stale rather than blanking the rows. A 429 additionally backs off — polling
+    // harder against a rate limit only digs deeper.
+    if (e.status === 429) {
+      quotaBackoff = Math.min(QUOTA_BACKOFF_MAX, quotaBackoff ? quotaBackoff * 2 : QUOTA_INTERVAL);
+      console.log('[HUD] quota rate-limited; backing off to',
+                  Math.round((QUOTA_INTERVAL + quotaBackoff) / 1000) + 's');
+    } else {
+      console.log('[HUD] quota via OAuth unavailable:', e.message);
+    }
+    if (usageState.quota) usageState.quotaStale = true;
+    else usageState.quota = null;
+  }
+  pushUsage();
+  scheduleQuota();
+}
+
+function scheduleQuota() {
+  if (quotaTimer) clearTimeout(quotaTimer);
+  quotaTimer = setTimeout(refreshQuota, QUOTA_INTERVAL + quotaBackoff);
+}
+
+async function refreshLocal() {
+  try {
+    await scanner.refresh();
+    usageState.local = scanner.stats();
+  } catch (e) {
+    console.log('[HUD] local usage scan failed:', e.message);
+  }
+  pushUsage();
+}
+
+function startUsageService() {
+  scanner = new LocalUsageScanner(path.join(app.getPath('userData'), 'usage-cache.json'));
+  OAuthUsage.fetchProfile()
+    .then((prof) => { usageState.profile = prof; pushUsage(); })
+    .catch(() => {});
+  refreshQuota();          // reschedules itself, with backoff on 429
+  refreshLocal();
+  setInterval(refreshLocal, 30000);
+}
+
 // ---- WebSocket server ----
 function startWebSocketServer() {
   wss = new WebSocket.Server({ port: 27843 });
@@ -270,12 +402,9 @@ function startWebSocketServer() {
     }
     ws.on('message', (raw) => {
       try {
-        const data = JSON.parse(raw.toString());
-        latestData = data;
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('usage-update', data);
-        }
-        if (petWindow) petWindow.updateUsage(data);
+        extensionData = JSON.parse(raw.toString());
+        // Only surfaces when the OAuth read is failing.
+        if (!usageState.quota) pushUsage();
       } catch (e) {}
     });
     ws.on('close', () => {
@@ -293,7 +422,11 @@ ipcMain.on('set-opacity', (event, val) => {
 });
 ipcMain.on('close-app', () => app.quit());
 ipcMain.on('get-data', (event) => {
-  event.reply('usage-update', latestData || { found: false });
+  event.reply('usage-update', usageState);
+});
+ipcMain.on('set-opacity-lock', (event, locked) => {
+  opacityLocked = !!locked;
+  refreshOpacity();
 });
 ipcMain.on('show-context-menu', () => showContextMenu());
 ipcMain.on('resize-window', (event, height) => {
@@ -323,6 +456,7 @@ app.whenReady().then(() => {
   startWebSocketServer();
   createWindow();
   initPet();
+  startUsageService();
 });
 
 app.on('window-all-closed', () => app.quit());
