@@ -58,7 +58,10 @@ function scrapeUsageData() {
       data.session_reset = sessionResetMatch[1].trim();
     }
 
-    const weeklyResetMatch = allText.match(/Resets ((?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[^\n]+)/);
+    // Anchored on the "All models" heading instead of a weekday prefix: in the
+    // final 24h claude.ai switches this to "Resets in 22 hr 31 min", which has
+    // no weekday and was silently missed.
+    const weeklyResetMatch = allText.match(/All models[\s\S]*?Resets ([^\n]+)/);
     if (weeklyResetMatch) {
       data.weekly_reset = weeklyResetMatch[1].trim();
     }
