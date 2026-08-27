@@ -1,5 +1,5 @@
 /* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
-const { app, BrowserWindow, ipcMain, screen, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, powerMonitor, screen, Menu, shell } = require('electron');
 
 // Attribution. Kept as one constant so every surface that names the project —
 // the panel footer, the context menu, the macOS about panel — cannot drift apart.
@@ -387,12 +387,14 @@ const QUOTA_INTERVAL = 75000;
 const QUOTA_BACKOFF_MAX = 900000;   // 15 min
 let quotaBackoff = 0;
 let quotaTimer = null;
+let lastQuotaOk = Date.now();
 
 async function refreshQuota() {
   try {
     usageState.quota = await OAuthUsage.fetchQuota();
     usageState.quotaStale = false;
     quotaBackoff = 0;
+    lastQuotaOk = Date.now();
   } catch (e) {
     // Two failure modes, same response: keep the last good reading and mark it
     // stale rather than blanking the rows. A 429 additionally backs off — polling
@@ -406,9 +408,13 @@ async function refreshQuota() {
     }
     if (usageState.quota) usageState.quotaStale = true;
     else usageState.quota = null;
+  } finally {
+    // The loop reschedules itself, so anything that throws between here and
+    // scheduleQuota() would stop polling permanently rather than skip one tick.
+    // A render push is not worth that, so it is contained.
+    try { pushUsage(); } catch (err) { console.log('[HUD] push failed:', err.message); }
+    scheduleQuota();
   }
-  pushUsage();
-  scheduleQuota();
 }
 
 function scheduleQuota() {
@@ -434,6 +440,28 @@ function startUsageService() {
   refreshQuota();          // reschedules itself, with backoff on 429
   refreshLocal();
   setInterval(refreshLocal, 30000);
+
+  // A sleeping Mac suspends the timer, and it does not necessarily fire on its
+  // own schedule again afterwards — which is how the readout can sit hours stale
+  // while the app looks perfectly alive. Refresh the moment the machine is back.
+  powerMonitor.on('resume', () => {
+    console.log('[HUD] system resumed — refreshing');
+    quotaBackoff = 0;
+    refreshQuota();
+    refreshLocal();
+  });
+  powerMonitor.on('unlock-screen', () => { quotaBackoff = 0; refreshQuota(); });
+
+  // Independent backstop on setInterval, which does not depend on any callback
+  // completing. If the self-rescheduling loop ever dies again, this restarts it.
+  setInterval(() => {
+    const idle = Date.now() - lastQuotaOk;
+    if (idle > 10 * 60 * 1000) {
+      console.log('[HUD] watchdog: no quota for', Math.round(idle / 60000), 'min — restarting poll');
+      quotaBackoff = 0;
+      refreshQuota();
+    }
+  }, 120000);
 }
 
 // ---- WebSocket server ----
@@ -465,6 +493,12 @@ ipcMain.on('set-opacity', (event, val) => {
   if (mainWindow) mainWindow.setOpacity(val);
 });
 ipcMain.on('close-app', () => app.quit());
+ipcMain.on('refresh-now', () => {
+  quotaBackoff = 0;
+  refreshQuota();
+  refreshLocal();
+});
+
 ipcMain.on('get-data', (event) => {
   const quota = usageState.quota || fromExtensionShape(extensionData);
   event.reply('usage-update', { ...usageState, quota });

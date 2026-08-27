@@ -81,13 +81,23 @@
        every window size, instead of shrinking with the content. */
     .ctl {
       position:absolute; top:12px; right:13px; z-index:3;
-      display:flex; gap:6px;
+      display:flex; gap:6px; align-items:center;
     }
+    /* Near-invisible at rest — a recovery affordance, not something to draw the
+       eye. The wider gap keeps it from reading as a fourth window control. */
+    .refresh {
+      width:11px; height:11px; cursor:pointer; color:var(--text);
+      opacity:.16; transition:opacity .15s; margin-right:3px;
+    }
+    .refresh:hover { opacity:.55; }
+    .refresh svg { width:100%; height:100%; display:block; }
+    .refresh.spin { opacity:.55; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
     .no-drag { -webkit-app-region: no-drag; }
 
     /* ---- header ---- */
     .hdr { display:flex; align-items:center; gap:7px; margin-bottom:11px;
-           padding-right:52px; }   /* clearance for the fixed controls */
+           padding-right:71px; }   /* clearance for the fixed controls */
     .live-dot { width:5px; height:5px; border-radius:50%; background:var(--live); flex:none;
                 animation: breathe 2.6s ease-in-out infinite; }
     .live-dot.off { background:var(--text-low); animation:none; }
@@ -178,6 +188,12 @@
 <body>
   <div id="hud">
     <div class="ctl no-drag">
+      <div class="refresh" id="btnRefresh" title="Refresh now">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.5 12a8.5 8.5 0 1 1-2.49-6.01"/><path d="M20.5 3.5v5h-5"/>
+        </svg>
+      </div>
       <div class="dot dot-lock"  id="btnLock"  title="Keep fully opaque"></div>
       <div class="dot dot-mini"  id="btnMini"  title="Compact mode"></div>
       <div class="dot dot-close" id="btnClose" title="Quit"></div>
@@ -480,6 +496,15 @@
     }
     window.addEventListener('resize', syncLayout);
 
+    const btnRefresh = document.getElementById('btnRefresh');
+    let spinFloor = 0;
+    btnRefresh.addEventListener('click', () => {
+      btnRefresh.classList.add('spin');
+      spinFloor = Date.now() + 550;    // spin long enough to read as feedback
+      window.hudAPI.refreshNow();
+      setTimeout(() => btnRefresh.classList.remove('spin'), 5000);   // hard stop
+    });
+
     document.getElementById('btnClose').addEventListener('click', () => window.hudAPI.close());
     document.getElementById('btnMini').addEventListener('click', () => {
       // The button means "toggle what I'm looking at". Auto-trim can put the
@@ -506,6 +531,10 @@
 
     window.hudAPI.onUsageUpdate((p) => {
       if (!p) return;
+      if (btnRefresh.classList.contains('spin')) {
+        setTimeout(() => btnRefresh.classList.remove('spin'),
+                   Math.max(0, spinFloor - Date.now()));
+      }
       if (p.quota   !== undefined) state.quota   = p.quota;
       if (p.local   !== undefined) state.local   = p.local;
       if (p.profile !== undefined) state.profile = p.profile;

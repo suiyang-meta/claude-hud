@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('hudAPI', {
   setOpacity: (val) => ipcRenderer.send('set-opacity', val),
   close: () => ipcRenderer.send('close-app'),
   getData: () => ipcRenderer.send('get-data'),
+  refreshNow: () => ipcRenderer.send('refresh-now'),
   showContextMenu: () => ipcRenderer.send('show-context-menu'),
   setOpacityLock: (locked) => ipcRenderer.send('set-opacity-lock', locked),
   getAutoStart: () => ipcRenderer.invoke('get-autostart'),
