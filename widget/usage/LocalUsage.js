@@ -46,6 +46,40 @@ const PRICE = {
   'claude-haiku-4-5':          [1, 5],
 };
 
+/**
+ * Per-tier rates, used when an exact id is unknown.
+ *
+ * An exact table alone fails the day a new point release ships: the id misses,
+ * the model is priced at zero, and its spend disappears from every total with
+ * nothing to indicate it. That is worse than an approximation, because a wrong
+ * number that looks confident is indistinguishable from a right one. Anthropic
+ * has kept list price constant within a tier across releases, so falling back to
+ * the tier prices a new model correctly on day one.
+ */
+const TIER_PRICE = {
+  fable:  [10, 50],
+  mythos: [10, 50],
+  opus:   [5, 25],
+  sonnet: [3, 15],
+  haiku:  [1, 5],
+};
+
+/** Ids seen at runtime that matched no rate at all — surfaced, never silent. */
+const unpricedModels = new Set();
+
+function rateFor(model) {
+  const exact = PRICE[model];
+  if (exact) return exact;
+  const tier = String(model || '').replace(/^claude-/, '').split('-')[0];
+  const byTier = TIER_PRICE[tier];
+  if (byTier) return byTier;
+  if (model && model !== '<synthetic>' && !unpricedModels.has(model)) {
+    unpricedModels.add(model);
+    console.log('[HUD] no rate for model "' + model + '" — its spend is excluded');
+  }
+  return null;
+}
+
 const EMPTY = () => ({ input: 0, output: 0, cache1h: 0, cache5m: 0, cacheRead: 0 });
 
 function addInto(dst, src) {
@@ -60,7 +94,7 @@ function weightedInput(b) {
 }
 
 function costUSD(model, b) {
-  const p = PRICE[model];
+  const p = rateFor(model);
   if (!p) return 0;
   return (weightedInput(b) / 1e6) * p[0] + (b.output / 1e6) * p[1];
 }

@@ -338,14 +338,18 @@
       // ---- by model ----
       let models = '';
       if (!lean && local && local.byModel && local.byModel.length) {
-        const rows = local.byModel.slice(0, 5);
-        const peak = Math.max(...rows.map(r => r.usd)) || 1;
+        // Rank and scale by whatever is on screen. Sorting by cost while showing
+        // token counts produces a list that looks unsorted, and bars whose
+        // lengths contradict the numbers beside them.
+        const metric = (r) => heroMode === 'usd' ? r.usd : r.tokens;
+        const rows = [...local.byModel].sort((a, b) => metric(b) - metric(a)).slice(0, 5);
+        const peak = Math.max(...rows.map(metric)) || 1;
         models += `<div class="hair"></div><div class="sec-label">by model · 7 days</div>`;
         rows.forEach((r, i) => {
           models += `<div class="m-row">
             <span class="m-name">${prettyModel(r.model)}</span>
             <span class="m-track"><span class="m-fill ${i===0?'top':''}"
-              style="width:${Math.max(2, 100*r.usd/peak)}%"></span></span>
+              style="width:${Math.max(2, 100*metric(r)/peak)}%"></span></span>
             <span class="m-val num">${heroMode==='usd' ? fmtUSD(r.usd) : fmtTokens(r.tokens)}</span>
           </div>`;
         });
