@@ -3,12 +3,20 @@
 /**
  * OAuthUsage — quota via Claude Code's own OAuth credential.
  *
- * Replaces the Chrome-extension DOM scrape. The credential lives in the macOS
- * keychain under "Claude Code-credentials"; Claude Code refreshes it on its own,
- * so we re-read the keychain before every call rather than managing refresh here.
- * Endpoints are undocumented internals — treat every field as optional.
+ * Replaces the Chrome-extension DOM scrape. Claude Code refreshes the credential
+ * on its own, so we re-read the store before every call rather than managing
+ * refresh here. Endpoints are undocumented internals — treat every field as
+ * optional.
+ *
+ * Two stores, because Claude Code itself uses two: the macOS keychain where one
+ * exists, and ~/.claude/.credentials.json everywhere else. Reads try the keychain
+ * first on darwin and fall back to the file, which also covers a Mac user who
+ * declined the keychain prompt. Writes go back to whichever one answered.
  */
 const { execFile } = require('child_process');
+const fsp = require('fs').promises;
+const os = require('os');
+const path = require('path');
 
 const KEYCHAIN_SERVICE = 'Claude Code-credentials';
 // Claude Code's own OAuth client, matching application.uuid from /api/oauth/profile.
@@ -16,25 +24,65 @@ const CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
 const API = 'https://api.anthropic.com';
 const OAUTH_BETA = 'oauth-2025-04-20';
 
-function readCredential() {
+function parseBlob(raw, where) {
+  let blob;
+  try { blob = JSON.parse(raw).claudeAiOauth; }
+  catch { throw new Error(where + ' is not the expected JSON shape'); }
+  if (!blob || !blob.accessToken) throw new Error('no accessToken in ' + where);
+  return blob;
+}
+
+function readKeychain() {
   return new Promise((resolve, reject) => {
-    if (process.platform !== 'darwin') return reject(new Error('keychain is macOS-only'));
     execFile('security', ['find-generic-password', '-s', KEYCHAIN_SERVICE, '-w'],
       { timeout: 10000 }, (err, stdout) => {
         if (err) return reject(new Error('keychain read denied or entry missing'));
-        let blob;
-        try { blob = JSON.parse(stdout.trim()).claudeAiOauth; }
-        catch { return reject(new Error('credential is not the expected JSON shape')); }
-        if (!blob || !blob.accessToken) return reject(new Error('no accessToken in credential'));
-        resolve(blob);
+        try { resolve(parseBlob(stdout.trim(), 'keychain credential')); }
+        catch (e) { reject(e); }
       });
   });
+}
+
+/**
+ * Claude Code's own resolution order for the credential directory, taken from
+ * its binary: an explicit secure-storage dir wins, then CLAUDE_CONFIG_DIR, then
+ * ~/.claude. On Windows os.homedir() gives %USERPROFILE%, which is where Claude
+ * Code puts it.
+ */
+function credentialFilePath() {
+  const dir = process.env.CLAUDE_SECURESTORAGE_CONFIG_DIR
+           || process.env.CLAUDE_CONFIG_DIR
+           || path.join(os.homedir(), '.claude');
+  return path.join(dir, '.credentials.json');
+}
+
+async function readCredentialFile() {
+  const p = credentialFilePath();
+  let raw;
+  try { raw = await fsp.readFile(p, 'utf8'); }
+  catch { throw new Error('no credential file at ' + p); }
+  return parseBlob(raw, 'credential file');
+}
+
+/** Which store answered last, so a refresh is written back to the same one. */
+let credentialSource = null;
+
+async function readCredential() {
+  const tried = [];
+  if (process.platform === 'darwin') {
+    try { const b = await readKeychain(); credentialSource = 'keychain'; return b; }
+    catch (e) { tried.push('keychain: ' + e.message); }
+  }
+  try { const b = await readCredentialFile(); credentialSource = 'file'; return b; }
+  catch (e) { tried.push('file: ' + e.message); }
+  throw new Error(tried.join(' / '));
 }
 
 /** Keychain account name for the entry, so an update targets it rather than
  *  creating a second one. */
 function readAccount() {
   return new Promise((resolve) => {
+    if (process.platform !== 'darwin') return resolve('');
     execFile('security', ['find-generic-password', '-s', KEYCHAIN_SERVICE],
       { timeout: 10000 }, (err, stdout) => {
         const m = !err && /"acct"<blob>="([^"]+)"/.exec(stdout || '');
@@ -43,7 +91,7 @@ function readAccount() {
   });
 }
 
-function writeCredential(blob, account) {
+function writeKeychain(blob, account) {
   const payload = JSON.stringify({ claudeAiOauth: blob });
   return new Promise((resolve, reject) => {
     execFile('security',
@@ -53,14 +101,33 @@ function writeCredential(blob, account) {
 }
 
 /**
+ * Rewrite only the OAuth section, preserving any other keys in the file, and
+ * land it atomically — a half-written credential file signs Claude Code out.
+ */
+async function writeCredentialFile(blob) {
+  const p = credentialFilePath();
+  let existing = {};
+  try { existing = JSON.parse(await fsp.readFile(p, 'utf8')); } catch { /* new file */ }
+  const tmp = p + '.hud-tmp';
+  await fsp.writeFile(tmp, JSON.stringify({ ...existing, claudeAiOauth: blob }), { mode: 0o600 });
+  await fsp.rename(tmp, p);
+}
+
+function writeCredential(blob, account) {
+  return credentialSource === 'keychain'
+    ? writeKeychain(blob, account)
+    : writeCredentialFile(blob);
+}
+
+/**
  * Exchange the refresh token for a new access token.
  *
  * Anthropic rotates refresh tokens — the old one dies on use — so the result
- * MUST land back in the keychain or Claude Code gets signed out. Verified by
+ * MUST land back in the store or Claude Code gets signed out. Verified by
  * reading it back before reporting success.
  *
  * Claude Code refreshes the same credential, so a lost race is expected rather
- * than exceptional: on failure we re-read the keychain, and if the other side
+ * than exceptional: on failure we re-read the store, and if the other side
  * already renewed it we simply adopt theirs.
  */
 let refreshInFlight = null;

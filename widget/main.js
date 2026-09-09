@@ -1,6 +1,8 @@
 /* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
 const { app, BrowserWindow, ipcMain, powerMonitor, screen, Menu, shell } = require('electron');
 
+const IS_MAC = process.platform === 'darwin';
+
 // Attribution. Kept as one constant so every surface that names the project —
 // the panel footer, the context menu, the macOS about panel — cannot drift apart.
 const REPO_URL = 'https://github.com/suiyang-meta/claude-hud';
@@ -190,21 +192,29 @@ function createWindow() {
     x: screenWidth - 282,
     y: 20,
     frame: false,
-    // NOT transparent: a transparent window disables macOS roundedCorners, which
-    // leaves the native vibrancy layer square while CSS rounds only the DOM —
-    // that mismatch is what shows as chipped top corners. Letting the native
-    // corner radius clip every layer keeps them in register.
-    transparent: false,
+    // Two recipes for the same look.
+    //
+    // macOS: an opaque window, because a transparent one disables roundedCorners
+    // and leaves the native vibrancy layer square while CSS rounds only the DOM —
+    // that mismatch is what shows as chipped corners. Native rounding clips every
+    // layer together.
+    //
+    // Elsewhere: transparency plus the stylesheet's own radius. Windows has no
+    // vibrancy, and its acrylic material would in turn forbid transparency and
+    // cost us the rounding. Not a real loss: the fill is 95.5% opaque, so barely
+    // any backdrop came through even on macOS — compared side by side over a
+    // bright pattern the two are hard to tell apart.
+    transparent: !IS_MAC,
     backgroundColor: '#00000000',
-    roundedCorners: true,
     alwaysOnTop: true,
     resizable: true,
     skipTaskbar: true,
     hasShadow: true,
-    // Native frosted glass. The CSS fill is translucent so this shows through;
-    // macOS-only, and harmlessly ignored elsewhere.
-    vibrancy: 'under-window',
-    visualEffectState: 'active',
+    ...(IS_MAC ? {
+      roundedCorners: true,
+      vibrancy: 'under-window',
+      visualEffectState: 'active',
+    } : {}),
     minWidth: 210,
     maxWidth: 1000,
     webPreferences: {
