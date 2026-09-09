@@ -83,11 +83,10 @@ APIs of any kind.</p>
 <h2>The Chrome extension</h2>
 <p><strong>On macOS it is not needed</strong> — the keychain route above supplies the
 allowance, so there is no browser tab and no claude.ai session involved.</p>
-<p><strong>On Windows it is how the allowance arrives.</strong> The keychain is
-macOS-only, so there the extension keeps a tab on your claude.ai usage page, reads the
-usage percentages shown on it, and sends them to the desktop app over
-<code>ws://localhost:27843</code> — a server on your own computer, not the internet. The
-token and cost figures still come from your local transcripts, exactly as on macOS.</p>
+<p><strong>It is no longer needed on Windows either.</strong> Claude Code keeps its
+credential in a file there rather than a keychain, and the app reads that file directly —
+so the allowance arrives the same way it does on macOS, with no browser tab involved. The
+extension remains only as a fallback for when the credential cannot be read at all.</p>
 <p>The extension reads no other page and none of your conversations. Its cache lives in
 <code>chrome.storage.local</code> and never leaves your browser profile.</p>
 

@@ -14,7 +14,7 @@ This project has two distinct entry points — pick whichever matches your time/
 
 ### 👋 Want a prebuilt installer? → Gumroad
 
-[**metasui.gumroad.com/l/evlikv**](https://metasui.gumroad.com/l/evlikv) — pay-what-you-want bundles for Mac (Apple Silicon `.dmg`) and Windows (x64 `.exe`), with the Chrome extension and setup README bundled in. No build tools required. Setup is ~2 minutes.
+[**metasui.gumroad.com/l/evlikv**](https://metasui.gumroad.com/l/evlikv) — pay-what-you-want bundles for Mac (Apple Silicon `.dmg`) and Windows (x64), with a setup guide and installer bundled in. No build tools required. Setup is ~2 minutes.
 
 The Chrome extension half is also available free on the [**Chrome Web Store**](https://chromewebstore.google.com/detail/hud-for-claude/pbboagijhngmapjomijmohfhajapfajl) — install that once you have the desktop app from Gumroad.
 
@@ -48,33 +48,39 @@ Deliberate. The Releases page intentionally doesn't attach `.dmg` / `.exe` binar
 
 The widget draws two kinds of numbers, and where each comes from depends on your OS.
 
-### macOS — reads your machine directly
+### Both platforms — reads your machine directly
 
 | | Source |
 |---|---|
-| **Plan allowance** (session %, weekly %, reset times) | The credential Claude Code keeps in your **macOS keychain**, used to ask Anthropic's API about your own account. macOS asks permission the first time. |
+| **Plan allowance** (session %, weekly %, reset times) | The credential Claude Code already holds on this machine, used to ask Anthropic's API about your own account |
 | **Token usage** (today, by model, 30 days, lifetime) | Your local Claude Code transcripts in `~/.claude/projects/` |
-| **Chrome extension** | **Not needed.** No browser, no tab, no claude.ai login. |
+| **Chrome extension** | **Not needed on either platform.** No browser, no tab, no claude.ai login. |
 
-Because Anthropic invalidates the previous credential whenever it renews one, the app
-writes the replacement back to the same keychain entry — otherwise Claude Code would get
-signed out.
+Where that credential lives is the only thing that differs, because it is the
+only thing Claude Code itself does differently:
 
-### Windows — allowance still comes through the extension
+| | macOS | Windows |
+|---|---|---|
+| Credential store | System keychain (macOS prompts once) | `%USERPROFILE%\.claude\.credentials.json` |
+| Panel backdrop | Native vibrancy | None — Windows has no equivalent |
+| Fonts | SF Pro / SF Mono | Segoe UI / Cascadia Mono |
 
-The keychain is macOS-only, so the v2 path stays in place for the allowance half:
+macOS tries the keychain first and falls back to the file, which also covers
+declining the keychain prompt. Anthropic invalidates the previous credential
+whenever it renews one, so the replacement is written back to whichever store it
+came from — otherwise Claude Code would get signed out.
 
-| | Source |
-|---|---|
-| **Plan allowance** | **Chrome extension** — keeps a tab on your claude.ai usage page, scrapes the percentages, pushes them to the widget over `ws://localhost:27843` |
-| **Token usage** | Same as macOS: your local `~/.claude/projects/` transcripts. This leg is plain file reading and is not macOS-specific. |
-| **Chrome extension** | **Required** for the allowance bars. Without it you still get the token/cost half. |
+The missing backdrop on Windows is close to invisible in practice: the panel
+fill is 95.5% opaque, so very little was ever showing through.
 
-> The Windows code path is platform-neutral by construction (the keychain call refuses on
-> non-Darwin and falls through to the extension; transcript scanning uses the OS home
-> directory), and the fallback was verified against the extension's real payload shape.
-> It has **not** been re-tested on a physical Windows machine since the data layer
-> changed — if you run it there and something is off, that is the first thing to suspect.
+> The Windows build is cross-compiled from macOS. The credential read, refresh,
+> write-back, file mode and atomic replacement were all exercised against the
+> shipped code with the platform forced to `win32`, and the binary is a genuine
+> PE32+ x86-64 — but it has **not** been run on physical Windows hardware. If
+> something is off there, that is the first thing to suspect.
+
+The Chrome extension still exists and still works — it remains the fallback if
+the credential cannot be read at all — but neither platform needs it any more.
 
 Either way: prompt and reply text is never read, and the only host contacted is
 `api.anthropic.com`, with your own credential, about your own account. Nothing goes to
