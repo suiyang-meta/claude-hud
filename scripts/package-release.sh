@@ -44,7 +44,9 @@ assemble() {   # $1=label  $2=payload  $3...=files from release-assets/distribut
   [ -f "$payload" ] || { echo "no payload: $payload"; exit 1; }
   local name="HUD-for-Claude-$VERSION-$label"
   local out="$HOME/Desktop/$name"
-  rm -rf "$out" "$out.zip"
+  # Clear earlier versions of THIS platform only. A single-platform run used to
+  # sweep every HUD zip off the Desktop, the other platform's included.
+  rm -rf "$out"; rm -f "$HOME/Desktop"/HUD-for-Claude-*-"$label".zip
   mkdir -p "$out"
   cp "$payload" "$out/"
   local f
@@ -62,9 +64,8 @@ assemble() {   # $1=label  $2=payload  $3...=files from release-assets/distribut
   [ "$n" -eq "$want" ] || { echo "  INCOMPLETE — expected $want"; exit 1; }
 }
 
-rm -f "$HOME/Desktop"/HUD-for-Claude-*.zip
 echo "--- assembling ---"
 [ "$WANT" = "mac" ] || [ "$WANT" = "both" ] && assemble mac "$(ls dist/*.dmg 2>/dev/null | head -1)" '安装说明.md' 'install.sh' 'diagnose.sh'
-[ "$WANT" = "win" ] || [ "$WANT" = "both" ] && assemble win "dist/HUD for Claude-$VERSION-win.zip" '安装说明-Windows.md' 'install.ps1'
+[ "$WANT" = "win" ] || [ "$WANT" = "both" ] && assemble win "dist/HUD for Claude-$VERSION-win.zip" 'README-Windows.md' 'install.ps1'
 [ "$SKIP_BUILD" = "1" ] || rm -rf "$ROOT/widget/dist"
 echo "OK"
