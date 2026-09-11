@@ -196,10 +196,15 @@ class LocalUsageScanner {
   }
 
   save() {
+    // Atomic, because this file is no longer only an optimization: it holds the
+    // only surviving record of every transcript Claude Code has since pruned. A
+    // crash mid-write used to cost one re-scan; it would now cost that history.
     try {
       fs.mkdirSync(path.dirname(this.cachePath), { recursive: true });
-      fs.writeFileSync(this.cachePath, JSON.stringify(this.cache));
-    } catch { /* cache is an optimization, never fatal */ }
+      const tmp = this.cachePath + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(this.cache));
+      fs.renameSync(tmp, this.cachePath);
+    } catch { /* never fatal */ }
   }
 
   async refresh() {
@@ -211,15 +216,29 @@ class LocalUsageScanner {
       let st;
       try { st = fs.statSync(f); } catch { continue; }
       const hit = this.cache.files[f];
-      if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) continue;
-      this.cache.files[f] = { mtimeMs: st.mtimeMs, size: st.size, days: await scanFile(f, this.tz) };
+      if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) {
+        if (hit.pruned) delete hit.pruned;
+        continue;
+      }
+      // One unreadable file skips itself, not the whole pass. Claude Code's own
+      // cleanup deletes transcripts on a schedule, so a file listed by walk()
+      // can be gone by the time it is opened.
+      let days;
+      try { days = await scanFile(f, this.tz); } catch { continue; }
+      this.cache.files[f] = { mtimeMs: st.mtimeMs, size: st.size, days };
       rescanned++;
     }
-    for (const f of Object.keys(this.cache.files)) {
-      if (!live.has(f)) delete this.cache.files[f];   // deleted transcript
+
+    // Claude Code prunes transcripts older than its cleanupPeriodDays — 30 by
+    // default. Mirroring that deletion made "lifetime" mean "whatever is still on
+    // disk", which on a default install shrinks every day and never reaches back
+    // past a month. A pruned transcript keeps its last reading instead.
+    let pruned = 0;
+    for (const [f, rec] of Object.entries(this.cache.files)) {
+      if (!live.has(f)) { rec.pruned = true; pruned++; }
     }
     this.save();
-    return { files: files.length, rescanned };
+    return { files: files.length, rescanned, pruned };
   }
 
   /** Merge every cached file into { [day]: { [model]: bucket } }. */

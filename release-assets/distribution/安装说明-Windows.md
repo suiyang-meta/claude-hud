@@ -83,6 +83,19 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 ---
 
+## 两组数字，范围不一样
+
+| | 算的是什么 |
+|---|---|
+| **配额条**（current session / weekly %） | 你**整个账号**：claude.ai 网页、Claude App、手机、别的电脑上的 Claude Code，全部加总 |
+| **token / 美元 / 按模型 / 30 天 / lifetime** | **只算这台电脑上的 Claude Code**（读 `%USERPROFILE%\.claude\projects\` 里的对话记录） |
+
+所以平常主要在 claude.ai 或 Claude App 里聊天的话，配额条会一直涨、token 数却几乎不动 —— 是范围不同，不是坏了。
+
+**lifetime 能追溯多远，取决于 Claude Code 留了多久。** Claude Code 默认只保留 30 天的对话记录（设定叫 `cleanupPeriodDays`），更早的在你装 HUD 之前就被它删掉了，谁都找不回来。从 3.2.1 起，HUD 读到过的每一笔都会一直留着，不会再跟着 Claude Code 的清理缩水。
+
+---
+
 ## 隐私
 
 **没有任何数据离开你的电脑。** 没有服务器、不上传、不统计。

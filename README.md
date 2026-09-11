@@ -53,7 +53,7 @@ The widget draws two kinds of numbers, and where each comes from depends on your
 | | Source |
 |---|---|
 | **Plan allowance** (session %, weekly %, reset times) | The credential Claude Code already holds on this machine, used to ask Anthropic's API about your own account |
-| **Token usage** (today, by model, 30 days, lifetime) | Your local Claude Code transcripts in `~/.claude/projects/` |
+| **Token usage** (today, by model, 30 days, lifetime) | Your local Claude Code transcripts in `~/.claude/projects/` — so **Claude Code on this machine only**. Chat on claude.ai, the Claude app, your phone or another computer moves the allowance bars but never appears here. |
 | **Chrome extension** | **Not needed on either platform.** No browser, no tab, no claude.ai login. |
 
 Where that credential lives is the only thing that differs, because it is the

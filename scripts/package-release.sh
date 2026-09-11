@@ -39,29 +39,32 @@ case "$WANT" in
 esac
 fi
 
-assemble() {   # $1=label  $2=payload glob  $3=guide  $4=installer
-  local payload; payload=$(ls "$2" 2>/dev/null | head -1)
-  [ -n "$payload" ] || { echo "no payload matched: $2"; exit 1; }
-  local out="$HOME/Desktop/HUD-for-Claude-$VERSION-$1"
-  rm -rf "$out" "$HOME/Desktop/HUD-for-Claude-$VERSION-$1.zip"
+assemble() {   # $1=label  $2=payload  $3...=files from release-assets/distribution
+  local label="$1" payload="$2"; shift 2
+  [ -f "$payload" ] || { echo "no payload: $payload"; exit 1; }
+  local name="HUD-for-Claude-$VERSION-$label"
+  local out="$HOME/Desktop/$name"
+  rm -rf "$out" "$out.zip"
   mkdir -p "$out"
   cp "$payload" "$out/"
-  cp "$DIST/$3" "$out/"
-  cp "$DIST/$4" "$out/"
-  [ "${4##*.}" = "sh" ] && chmod +x "$out/$4"
-  (cd "$HOME/Desktop" && zip -qr "HUD-for-Claude-$VERSION-$1.zip" "HUD-for-Claude-$VERSION-$1")
+  local f
+  for f in "$@"; do
+    cp "$DIST/$f" "$out/"
+    case "$f" in *.sh) chmod +x "$out/$f" ;; esac
+  done
+  (cd "$HOME/Desktop" && zip -qr "$name.zip" "$name")
   rm -rf "$out"
   # Count only the file-listing rows. `unzip -l` opens with "Archive: <name>.zip",
   # which otherwise matches the extension pattern and inflates the total by one.
-  local n; n=$(unzip -l "$HOME/Desktop/HUD-for-Claude-$VERSION-$1.zip" \
-               | grep -E '^ *[0-9]+ ' | grep -cE '\.(dmg|zip|md|sh|ps1)$')
-  printf "  %-4s -> %s  (%d files)\n" "$1" "HUD-for-Claude-$VERSION-$1.zip" "$n"
-  [ "$n" -eq 3 ] || { echo "  INCOMPLETE — expected 3"; exit 1; }
+  local want=$(( $# + 1 )) n
+  n=$(unzip -l "$out.zip" | grep -E '^ *[0-9]+ ' | grep -cE '\.(dmg|zip|md|sh|ps1)$')
+  printf "  %-4s -> %s  (%d files)\n" "$label" "$name.zip" "$n"
+  [ "$n" -eq "$want" ] || { echo "  INCOMPLETE — expected $want"; exit 1; }
 }
 
 rm -f "$HOME/Desktop"/HUD-for-Claude-*.zip
 echo "--- assembling ---"
-[ "$WANT" = "mac" ] || [ "$WANT" = "both" ] && assemble mac "$(ls dist/*.dmg 2>/dev/null | head -1)" '安装说明.md' 'install.sh'
+[ "$WANT" = "mac" ] || [ "$WANT" = "both" ] && assemble mac "$(ls dist/*.dmg 2>/dev/null | head -1)" '安装说明.md' 'install.sh' 'diagnose.sh'
 [ "$WANT" = "win" ] || [ "$WANT" = "both" ] && assemble win "dist/HUD for Claude-$VERSION-win.zip" '安装说明-Windows.md' 'install.ps1'
 [ "$SKIP_BUILD" = "1" ] || rm -rf "$ROOT/widget/dist"
 echo "OK"
