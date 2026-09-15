@@ -107,7 +107,7 @@ function rawTokens(b) {
 function localDayKey(iso, tzOffsetMinutes) {
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return null;
-  return new Date(t + tzOffsetMinutes * 60000).toISOString().slice(0, 10);
+  return new Date(t + tzOffsetMinutes * 60000).toISOString().slice(0, 10); // 时区：本机（先平移 tzOffsetMinutes，toISOString 只是切字串）
 }
 
 /**
@@ -257,7 +257,7 @@ class LocalUsageScanner {
   }
 
   /** Everything the HUD renders, in one pass. */
-  stats(todayKey = new Date(Date.now() + this.tz * 60000).toISOString().slice(0, 10)) {
+  stats(todayKey = new Date(Date.now() + this.tz * 60000).toISOString().slice(0, 10)) { // 时区：本机（同 localDayKey，先平移 this.tz）
     const all = this.merged();
     const dayKeys = Object.keys(all).sort();
 
@@ -280,7 +280,7 @@ class LocalUsageScanner {
     const shift = (days) => {
       const d = new Date(todayKey + 'T00:00:00Z');
       d.setUTCDate(d.getUTCDate() - days);
-      return d.toISOString().slice(0, 10);
+      return d.toISOString().slice(0, 10); // 时区：UTC（todayKey 已是本地日期，这里只拿 UTC 日历倒推天数）
     };
 
     const today = sumRange(todayKey);
