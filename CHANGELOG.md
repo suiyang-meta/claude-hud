@@ -7,6 +7,35 @@ are versioned independently.
 
 # Desktop app
 
+## [3.3.0] - 2026-09-19
+
+### Added
+
+- **Edge notch.** The HUD now rests as a thin sliver on the screen edge.
+  Touch it and it slides out into a notch with one ring per provider; hover a
+  ring for its card (limit windows and reset times). The notch uses the
+  panel's own material, and its outline follows two rules: the convex bend is
+  concentric with the rings, and the concave bend off the edge has the same
+  radius, joined by a straight slope.
+- **Codex usage.** If Codex is signed in with ChatGPT on this machine, a second
+  ring shows its 5-hour and weekly limits, read with Codex's own sign-in
+  (`~/.codex/auth.json`, read-only) from the endpoint Codex itself uses. Codex
+  has its own panel in its own colours; it is never merged into Claude's.
+- **Pinning.** Click a ring to pin its card; both cards can be pinned at once.
+  The small circle at the bottom of the notch pins the notch open. Pins,
+  position and edge are remembered across restarts.
+- **Detach.** Double-click a ring, or use the card's expand icon, to open that
+  provider's full panel; the notch folds away.
+- **Left or right edge.** Drag the notch across the middle of the screen, or
+  pick a side from the right-click menu.
+
+### Changed
+
+- The panel's red dot now folds the panel back to the edge. Quit is in the
+  right-click menu.
+- The panel's grain is lighter and its ground a little deeper, closer to the
+  notch.
+
 ## [2.0.0] - 2026-05-24
 
 ### Added

@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('hudAPI', {
   onConnectionChange: (cb) => ipcRenderer.on('connection-change', (e, val) => cb(val)),
   setOpacity: (val) => ipcRenderer.send('set-opacity', val),
   close: () => ipcRenderer.send('close-app'),
+  fold: () => ipcRenderer.send('fold-panel'),
   getData: () => ipcRenderer.send('get-data'),
   refreshNow: () => ipcRenderer.send('refresh-now'),
   showContextMenu: () => ipcRenderer.send('show-context-menu'),

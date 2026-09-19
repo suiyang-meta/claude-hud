@@ -33,6 +33,7 @@ class PetButton {
     this._pendingActivePet = null;
     this._pendingHover = false;        // start hidden
     this._hideTimer = null;
+    this.visible = true;               // follows the HUD panel; see setVisible()
     this._wireIpc();
   }
 
@@ -71,6 +72,7 @@ class PetButton {
       skipTaskbar: true,
       hasShadow: false,
       focusable: false,
+      show: this.visible,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -164,6 +166,13 @@ class PetButton {
   _sendActivePet(pet) {
     if (!this.window || this.window.isDestroyed()) return;
     this.window.webContents.send('button:active-pet', pet);
+  }
+
+  setVisible(v) {
+    this.visible = !!v;
+    if (!this.window || this.window.isDestroyed()) return;
+    if (this.visible) { this._reposition(); this.window.showInactive(); }
+    else this.window.hide();
   }
 
   close() {

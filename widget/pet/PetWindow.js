@@ -157,6 +157,7 @@ class PetWindow {
     this._dragAccum = 0;
     this._dragDebounceTimer = null;
     this._dragEndTimer = null;
+    this.visible = true;                 // follows the HUD panel; see setVisible()
 
     this.stateMachine = new PetStateMachine({
       emitState: (s) => this._sendState(s),
@@ -206,6 +207,7 @@ class PetWindow {
       skipTaskbar: true,
       hasShadow: false,
       focusable: false,
+      show: this.visible,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -304,6 +306,15 @@ class PetWindow {
     this._rendererReady = false;
     this._pendingPet = null;
     this.pet = null;
+  }
+
+  // The pet lives beside the panel, so it goes wherever the panel goes: hidden
+  // while the HUD is folded into the notch, back when the panel opens.
+  setVisible(v) {
+    this.visible = !!v;
+    if (!this.window || this.window.isDestroyed()) return;
+    if (this.visible) { this._reposition(); this.window.showInactive(); }
+    else this.window.hide();
   }
 
   updateUsage(data) {

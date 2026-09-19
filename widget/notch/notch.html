@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<!-- HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    :root {
+      --ink:   rgba(4,3,3,0.965);
+      --text:  #f2ece7;
+      --mid:   rgba(242,236,231,0.56);
+      --low:   rgba(242,236,231,0.30);
+      --track: rgba(242,236,231,0.12);
+      /* Folded vs open geometry; NotchWindow.js sizes the window to match. */
+      --w: 9px;
+      --oy: 0px;            /* notch top inside the window (cards can make it taller) */
+      --nh: 100%;           /* notch height */
+      --ease: cubic-bezier(.3,.7,.2,1);
+      --out: cubic-bezier(.2,.85,.25,1);    /* entrances: quick start, long soft landing */
+      --in:  cubic-bezier(.45,0,.75,.3);     /* exits: ease in, leave briskly */
+    }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; }
+    html, body { width:100%; height:100%; overflow:hidden; background:transparent;
+      font-family:-apple-system,'SF Pro Text','Segoe UI Variable Text','Segoe UI',system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased; cursor:default; }
+    .num { font-family:'SF Mono',ui-monospace,'Cascadia Mono',Consolas,Menlo,monospace;
+           font-variant-numeric:tabular-nums; }
+
+
+    /* ---- the shape ----
+       One closed path, drawn by shapePath() below, used as the clip of the
+       material. No outline: the edge is just where the material stops. Two rules:
+       1. Concentric: the convex bend is r=24 = ring radius 14.5 + padding 9.5,
+          and its centre IS the ring's centre.
+       2. Balanced: the concave bend off the screen edge has the SAME radius as
+          the convex one, joined by a short straight slope — a calm step, like
+          the macOS menu-bar notch. (A small concave fillet against a big convex
+          corner was geometrically fine and looked wrong.)
+       The path is always drawn for the right edge; on the left edge #mat is
+       mirrored as a whole, which flips its clip and its glows together. */
+    /* #shape is always the OPEN notch's box, so the rings never move while the
+       outline animates around them; the folded meters live in #mini. It takes
+       no clicks itself — only the material and the controls on it do. */
+    #shape { position:absolute; right:0; top:var(--oy); height:var(--nh); width:48px;
+             pointer-events:none; }
+    body.left #shape { right:auto; left:0; }
+    #mat {
+      position:fixed; inset:0;
+      clip-path: var(--clip);
+      background:
+        radial-gradient(90px 90px at 100% var(--glow-b, 100%), rgba(247,162,49,0.20) 0%, rgba(247,162,49,0.04) 50%, transparent 78%),
+        radial-gradient(70px 60px at 60% var(--glow-b2, 96%), rgba(230,104,52,0.08) 0%, transparent 70%),
+        radial-gradient(90px 80px at 30% var(--glow-t, 0%),  rgba(198,38,32,0.14) 0%, rgba(198,38,32,0.03) 55%, transparent 80%),
+        var(--ink);
+    }
+    body.left #mat { transform: scaleX(-1); }
+    #mat::before, #mat::after { content:''; position:absolute; inset:0; pointer-events:none; }
+    #mat::before {
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23m)'/%3E%3C/svg%3E");
+      background-size:120px 120px; opacity:.055;
+    }
+    #mat::after {
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size:140px 140px; opacity:.42; mix-blend-mode:overlay;
+    }
+    /* Exit: wait for the rings to fade, then draw in. Entry: grow out at once. */
+    body.ready #mat { transition: clip-path 220ms var(--in) 70ms; }
+    body.ready.open #mat { transition: clip-path 300ms var(--out); }
+
+    /* ---- folded: one hairline meter per provider, filling from the bottom ---- */
+    #mini { position:fixed; right:0; width:9px; top:calc(50% - 16px); height:32px;
+            display:flex; gap:3px; justify-content:center; padding-left:1px;
+            transition: opacity 160ms ease 200ms; }
+    body.left #mini { right:auto; left:0; padding-left:0; padding-right:1px; }
+    .mm { width:2px; height:100%; border-radius:1px; background:var(--track);
+          position:relative; overflow:hidden; }
+    .mm i { position:absolute; left:0; right:0; bottom:0; border-radius:1px; }
+    body.open #mini { opacity:0; transition: opacity 80ms ease; }
+
+    /* ---- open: one ring per provider ---- */
+    /* Top = first ring's centre (the convex bend's centre, 55.4) minus the ring radius. */
+    #rings, #npin { opacity:0; transform:translateX(7px);
+             transition: opacity 90ms ease, transform 110ms var(--in); pointer-events:none; }
+    body.left #rings, body.left #npin { transform:translateX(-7px); }
+    body.open #rings, body.open #npin { opacity:1; transform:none; pointer-events:auto;
+             transition: opacity 200ms ease 110ms, transform 320ms var(--out) 80ms; }
+    #rings { position:absolute; top:41px; left:0; right:0; display:flex; flex-direction:column;
+             align-items:center; justify-content:flex-start; }
+    .cell { height:50px; width:100%; display:flex; flex-direction:column; align-items:center;
+            justify-content:flex-start; gap:3px; cursor:pointer; }
+    .ring { position:relative; width:29px; height:29px; transition: transform .15s var(--ease); }
+    .ring svg { position:absolute; inset:0; transform:rotate(-90deg); }
+    .ring .glyph { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+    .ring .glyph svg { position:static; transform:none; width:11px; height:11px; }
+    .arc { transition: stroke-dashoffset .6s var(--ease), stroke .6s ease; }
+    .pct { font-size:9.5px; font-weight:600; color:var(--text); letter-spacing:-.1px; }
+    .cell.stale .pct, .cell.stale .ring { opacity:.45; }
+    .cell:hover .ring { transform:scale(1.06); }
+
+    /* ---- pins: a small circle. Hollow = not pinned (only shown while you are
+       on the thing), filled = pinned (always shown). A circle, like the rings,
+       so it adds no new shape to the notch. ---- */
+    .pin { width:16px; height:16px; display:flex; align-items:center; justify-content:center;
+           cursor:pointer; }
+    .pin i { opacity:0; transition: opacity .15s, background .15s; }
+    .pin i { width:6px; height:6px; border-radius:50%; box-sizing:border-box;
+             border:1.2px solid var(--pin, var(--text)); }
+    .pin.on i { background:var(--pin, var(--text)); }
+    /* The notch's pin sits on the notch's own centre line (the rings' axis,
+       24px in from the edge), in the bottom bend: halfway between the last
+       label's baseline and where the bend meets that axis. */
+    #npin { position:absolute; bottom:32px; right:16px; }
+    body.left #npin { right:auto; left:16px; }
+    body:hover #npin i { opacity:.4; }
+    #npin:hover i { opacity:.85 !important; }
+    body.pinned #npin i { opacity:.75; }
+
+    /* ---- cards, beside the notch ---- */
+    .card {
+      position:absolute; right:calc(48px + 8px); width:220px;
+      color:var(--text);
+      border-radius:14px; padding:12px 12px 10px;   /* 14 = bar radius 2 + padding 12 */
+      box-shadow: 0 10px 28px rgba(0,0,0,.38), inset 0 0 0 1px rgba(242,236,231,0.07);
+      opacity:0; transform:translateX(-6px);
+      transition: opacity 120ms ease, transform 160ms var(--ease), top 160ms var(--ease);
+      pointer-events:none;
+    }
+    body.left .card { right:auto; left:calc(48px + 8px); transform:translateX(6px); }
+    .card.on { opacity:1; transform:none; pointer-events:auto; }
+    body.left .card.on { transform:none; }
+    .card.claude {
+      background:
+        radial-gradient(90% 72% at 106% 124%, rgba(247,162,49,0.58) 0%, rgba(247,162,49,0.14) 42%, transparent 68%),
+        radial-gradient(60% 46% at 80% 112%, rgba(230,104,52,0.22) 0%, transparent 64%),
+        radial-gradient(80% 60% at -6% -18%, rgba(198,38,32,0.26) 0%, transparent 66%),
+        rgba(4,3,3,0.965);
+    }
+    .card.codex {
+      --text:#eef0ff; --mid:rgba(226,230,255,0.55); --low:rgba(226,230,255,0.30);
+      --track:rgba(177,167,255,0.12);
+      background:
+        radial-gradient(90% 70% at 108% 128%, rgba(57,65,255,0.62) 0%, transparent 64%),
+        radial-gradient(90% 70% at -6% -18%, rgba(177,167,255,0.36) 0%, transparent 68%),
+        rgba(4,4,9,0.965);
+      box-shadow: 0 10px 28px rgba(0,0,0,.38), inset 0 0 0 1px rgba(177,167,255,0.08);
+    }
+    .card.codex .c-plan { color:#B1A7FF; border-color:rgba(177,167,255,.34); }
+    .card:hover .cpin i, .card:hover .cexp { opacity:.4; }
+    .card .cpin:hover i, .card .cexp:hover { opacity:.85; }
+    .card.pinned .cpin i { opacity:.9; }
+    /* Detach: open this provider's full panel. Same weight as the pin circle —
+       a 1.2px stroke at 9px — so the two read as one pair of controls. */
+    .cexp { width:16px; height:16px; display:flex; align-items:center; justify-content:center;
+            color:var(--text); opacity:0; cursor:pointer; transition: opacity .15s; margin-right:-3px; }
+    .cexp svg { width:9px; height:9px; }
+    .card.claude .cpin { --pin:#d97757; }
+    .card.codex .cpin { --pin:#B1A7FF; }
+    .c-hd { display:flex; align-items:center; gap:7px; margin-bottom:9px; }
+    .c-hd > svg { width:13px; height:13px; flex:none; }
+    .c-name { font-size:11.5px; font-weight:600; }
+    .c-plan { font-size:8px; font-weight:600; letter-spacing:.5px; text-transform:uppercase;
+              color:var(--mid); border:1px solid rgba(242,236,231,.18); padding:1px 4px;
+              border-radius:4px; margin-left:auto; }
+    .c-hd .cpin { margin-left:2px; }
+    .c-hd .c-name + .cpin { margin-left:auto; }
+    .c-row { margin-bottom:8px; }
+    .c-top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px; }
+    .c-lbl { font-size:9.5px; color:var(--mid); }
+    .c-rst { font-size:8.5px; color:var(--low); }
+    .c-trk { height:4px; border-radius:2px; background:var(--track); overflow:hidden; }
+    .c-trk i { display:block; height:100%; border-radius:2px; }
+    .c-val { font-size:9px; color:var(--mid); margin-top:3px; }
+    .c-foot { font-size:8px; color:var(--low); margin-top:2px; }
+  </style>
+</head>
+<body>
+  <div id="mat"></div>
+  <div id="shape">
+    <div id="mini"></div>
+    <div id="rings"></div>
+    <div class="pin" id="npin" title="Pin the notch open"></div>
+  </div>
+  <div id="cards"></div>
+
+  <script>
+    const GLYPH = {
+      // Neutral marks drawn for this app — not the vendors' logos.
+      claude: `<svg viewBox="0 0 24 24" fill="none" stroke="#d97757" stroke-width="2.6" stroke-linecap="round">
+        <path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></svg>`,
+      codex: `<svg viewBox="0 0 24 24" fill="none" stroke="#9aa6ff" stroke-width="2.4"
+        stroke-linecap="round" stroke-linejoin="round"><path d="m5 7 5 5-5 5M13 18h6"/></svg>`,
+    };
+    const PIN = '<i></i>';
+    const EXPAND = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3"
+      stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 1.5h3v3M10.5 1.5 7 5M4.5 10.5h-3v-3M1.5 10.5 5 7"/></svg>`;
+    const CIRC = 2 * Math.PI * 15.5;
+
+    // Body width and bend radius per state. Must match NotchWindow.js.
+    const GEO = { folded: { w: 9, r: 9 }, open: { w: 48, r: 24 } };
+    const PHI = Math.PI / 3;          // each bend turns 60°; the slope between is 60° off the edge
+    const ROW_H = 50, LABEL_DROP = 24, CARD_GAP = 8;
+    let geoState = 'folded';
+
+    /* Per flare: concave arc (radius r) off the edge, straight slope, convex
+       arc (same r) landing tangent on the body's side. yE is where the flare
+       ends — the convex bend's centre height, and the first ring's centre. */
+    function flare(g) {
+      const c = Math.cos(PHI), sn = Math.sin(PHI), r = g.r;
+      const L = Math.max(0, (g.w - 2 * r * (1 - c)) / sn);
+      return { r, L, c, sn, yE: 2 * r * sn + L * c };
+    }
+    // The outline for the right edge, from y0 to y0+H, in window pixels.
+    function shapePath(W, y0, H, g) {
+      const { r, c, sn, yE } = flare(g);
+      const f = (n) => Math.round(n * 100) / 100;
+      const x = W - g.w, B = y0 + H;
+      const p1x = W - r * (1 - c), p1y = r * sn;              // end of the concave arc
+      const p2x = x + r * (1 - c), p2y = yE - r * sn;         // start of the convex arc
+      return `M ${f(W)} ${f(y0)} A ${r} ${r} 0 0 1 ${f(p1x)} ${f(y0 + p1y)} L ${f(p2x)} ${f(y0 + p2y)} ` +
+             `A ${r} ${r} 0 0 0 ${f(x)} ${f(y0 + yE)} L ${f(x)} ${f(B - yE)} ` +
+             `A ${r} ${r} 0 0 0 ${f(p2x)} ${f(B - p2y)} L ${f(p1x)} ${f(B - p1y)} ` +
+             `A ${r} ${r} 0 0 1 ${f(W)} ${f(B)} Z`;
+    }
+    const FOLD_H = 64;
+    function openHeight() {
+      const n = Math.max(1, providers.length);
+      return Math.round(2 * flare(GEO.open).yE + (n - 1) * ROW_H + LABEL_DROP);
+    }
+    function notchHeight() { return geoState === 'open' ? openHeight() : FOLD_H; }
+    /* The window is the same size folded and open (NotchWindow.js), so folding
+       and unfolding are purely this clip-path animating — nothing is resized
+       mid-animation, which is what used to flash a frame of the old shape. */
+    function drawShape() {
+      const onh = Math.min(innerHeight, openHeight());
+      const oy = Math.round((innerHeight - onh) / 2);
+      const nh = Math.min(innerHeight, notchHeight());
+      const ny = Math.round((innerHeight - nh) / 2);
+      const root = document.documentElement.style;
+      root.setProperty('--oy', oy + 'px');
+      root.setProperty('--nh', onh + 'px');
+      // Glows sit on the open notch's box in both states, so they never jump.
+      root.setProperty('--glow-t', (100 * oy / innerHeight) + '%');
+      root.setProperty('--glow-b', (100 * (oy + onh) / innerHeight) + '%');
+      root.setProperty('--glow-b2', (100 * (oy + onh * 0.96) / innerHeight) + '%');
+      root.setProperty('--clip', `path("${shapePath(innerWidth, ny, nh, GEO[geoState])}")`);
+    }
+
+    let providers = [];
+    let pinned = false;
+    let pinnedCards = new Set();
+    let hoverId = null, hideTimer = null;
+
+    /* Each provider keeps its own palette. Claude: the panel's coral, warming
+       toward red as it fills (same curve as the panel's bars). Codex: its
+       lavender -> electric-blue gradient, red only once the limit is hit. */
+    function claudeColor(pct) {
+      const t = Math.min(1, Math.max(0, (pct || 0) / 100)), e = t * t;
+      return `hsl(${(17 - 14 * e).toFixed(1)} ${(60 + 14 * e).toFixed(0)}% ${(60 - 7 * e).toFixed(0)}%)`;
+    }
+    const CODEX_GRAD = 'linear-gradient(90deg,#B1A7FF,#7A9DFF 55%,#3941FF)';
+    function stroke(id, pct) {
+      if (pct == null) return 'var(--low)';
+      if (id === 'codex') return pct >= 100 ? '#ff6b7a' : 'url(#cxg)';
+      return claudeColor(pct);
+    }
+    function fill(id, pct) {
+      if (id === 'codex') {
+        if (pct >= 100) return 'background:#ff6b7a';
+        const p = Math.max(1, Math.min(100, pct));
+        return `background:${CODEX_GRAD};background-size:${10000 / p}% 100%`;
+      }
+      return 'background:' + claudeColor(pct);
+    }
+    function until(r) {
+      if (!r) return null;
+      if (r.resetsText) return r.resetsText;
+      const ms = Date.parse(r.resetsAt) - Date.now();
+      if (!(ms > 0)) return null;
+      const m = Math.floor(ms / 60000), h = Math.floor(m / 60), d = Math.floor(h / 24);
+      return d >= 1 ? `in ${d}d ${h % 24}h` : h >= 1 ? `in ${h}h ${m % 60}m` : `in ${m}m`;
+    }
+
+    function render() {
+      document.getElementById('mini').innerHTML = providers.map(p => {
+        const v = p.ring == null ? 0 : p.ring;
+        const bg = p.id === 'codex' ? 'linear-gradient(0deg,#3941FF,#7A9DFF,#B1A7FF)' : claudeColor(p.ring);
+        return `<div class="mm"><i style="height:${Math.max(v ? 8 : 0, v)}%;background:${bg}"></i></div>`;
+      }).join('');
+
+      const rings = document.getElementById('rings');
+      rings.innerHTML = providers.map((p) => {
+        const v = p.ring == null ? 0 : Math.min(100, p.ring);
+        return `<div class="cell ${p.stale ? 'stale' : ''}" data-id="${p.id}">
+          <div class="ring">
+            <svg viewBox="0 0 36 36"><defs><linearGradient id="cxg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#B1A7FF"/><stop offset=".5" stop-color="#7A9DFF"/>
+              <stop offset="1" stop-color="#3941FF"/></linearGradient></defs>
+              <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--track)" stroke-width="3"/>
+              <circle class="arc" cx="18" cy="18" r="15.5" fill="none" stroke="${stroke(p.id, p.ring)}"
+              stroke-width="3" stroke-linecap="round" stroke-dasharray="${CIRC}"
+              stroke-dashoffset="${CIRC * (1 - v / 100)}"/></svg>
+            <div class="glyph">${GLYPH[p.id] || ''}</div>
+          </div>
+          <div class="pct num">${p.ring == null ? '–' : p.ring + '%'}</div>
+        </div>`;
+      }).join('');
+      rings.querySelectorAll('.cell').forEach(el => {
+        el.addEventListener('mouseenter', () => { clearTimeout(hideTimer); hoverId = el.dataset.id; layoutCards(); });
+        el.addEventListener('mouseleave', hideSoon);
+      });
+      drawShape();
+      layoutCards();
+    }
+
+    function cardEl(id) {
+      let el = document.querySelector(`.card[data-id="${id}"]`);
+      if (el) return el;
+      el = document.createElement('div');
+      el.className = 'card ' + (id === 'codex' ? 'codex' : 'claude');
+      el.dataset.id = id;
+      el.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+      el.addEventListener('mouseleave', hideSoon);
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('.cpin')) window.notchAPI.pin('card', id, !pinnedCards.has(id));
+        else if (e.target.closest('.cexp')) window.notchAPI.detach(id);
+      });
+      document.getElementById('cards').appendChild(el);
+      return el;
+    }
+    function fillCard(el, p) {
+      el.classList.toggle('pinned', pinnedCards.has(p.id));
+      el.innerHTML = `<div class="c-hd">${GLYPH[p.id] || ''}<span class="c-name">${p.label}</span>
+        ${p.plan ? `<span class="c-plan">${p.plan}</span>` : ''}
+        <span class="pin cpin ${pinnedCards.has(p.id) ? 'on' : ''}" title="${pinnedCards.has(p.id) ? 'Unpin' : 'Pin'} this card">${PIN}</span>
+        <span class="cexp" title="Open the full panel">${EXPAND}</span></div>` +
+        (p.rows.length ? p.rows.map(r => `<div class="c-row">
+          <div class="c-top"><span class="c-lbl">${r.label}</span>
+            <span class="c-rst">${until(r) ? 'resets ' + until(r) : ''}</span></div>
+          <div class="c-trk"><i style="width:${Math.min(100, r.percent)}%;${fill(p.id, r.percent)}"></i></div>
+          <div class="c-val num">${r.percent}% used</div></div>`).join('')
+          : `<div class="c-val">${p.note || 'No reading yet'}</div>`) +
+        (p.stale ? `<div class="c-foot">${p.note || 'Last reading — may be out of date'}</div>` : '');
+    }
+
+    /* Cards sit beside their own ring. Two cards are much taller than the gap
+       between rings, so they are stacked downwards from the first.
+       The window is sized once for the worst case — every card showing — and
+       never resized while you hover. Resizing it per card is what made the
+       notch jump (and the hover flicker) when moving between the two rings:
+       a taller window re-centres the notch under the pointer. The extra room
+       is transparent and lets clicks through (see setSolid below). */
+    let lastAsk = '';
+    function stack(list, nh) {
+      const { yE } = flare(GEO.open);
+      let prevBottom = -Infinity, minTop = Infinity, maxBottom = -Infinity;
+      const out = [];
+      for (const p of list) {
+        const el = cardEl(p.id);
+        fillCard(el, p);
+        const h = el.offsetHeight;
+        const centre = -nh / 2 + yE + providers.indexOf(p) * ROW_H;   // relative to the notch's centre
+        let top = Math.max(centre - h / 2, prevBottom + CARD_GAP);
+        prevBottom = top + h;
+        minTop = Math.min(minTop, top); maxBottom = Math.max(maxBottom, top + h);
+        out.push({ p, el, top });
+      }
+      return { out, needH: out.length ? Math.ceil(2 * Math.max(-minTop, maxBottom) + 8) : 0 };
+    }
+    function layoutCards() {
+      const open = geoState === 'open';
+      const want = open ? providers.filter(p => pinnedCards.has(p.id) || p.id === hoverId) : [];
+      const nh = notchHeight();
+      const worst = stack(providers, nh).needH;
+      const { out } = stack(want, nh);
+      const roomy = true;                        // the window always has card room
+      for (const el of document.querySelectorAll('.card')) {
+        if (!want.some(p => p.id === el.dataset.id)) el.classList.remove('on');
+      }
+      for (const { el, top } of out) {
+        el.style.top = Math.round(innerHeight / 2 + top) + 'px';
+        el.classList.toggle('on', roomy);
+      }
+      const ask = JSON.stringify({ cards: out.length > 0, worst });
+      if (ask !== lastAsk) { lastAsk = ask; window.notchAPI.layout(out.length > 0, worst); }
+    }
+    function hideSoon() {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => { hoverId = null; layoutCards(); }, 140);
+    }
+
+    window.notchAPI.onState((m) => {
+      document.body.classList.toggle('left', m.side === 'left');
+      pinned = !!m.pinned;
+      pinnedCards = new Set(m.cards || []);
+      document.body.classList.toggle('pinned', pinned);
+      const npin = document.getElementById('npin');
+      npin.title = pinned ? 'Unpin the notch' : 'Pin the notch open';
+      npin.classList.toggle('on', pinned);
+      const next = m.state === 'open' ? 'open' : 'folded';
+      if (next !== geoState) {
+        geoState = next;
+        document.body.classList.toggle('open', next === 'open');
+        if (next !== 'open') hoverId = null;
+        drawShape();
+      }
+      layoutCards();
+    });
+    window.notchAPI.onUpdate((payload) => {
+      providers = (payload && payload.providers) || [];
+      render();
+    });
+
+    document.getElementById('npin').innerHTML = PIN;
+
+    // Transparent parts of the window (beside a card, above or below it) must
+    // not swallow clicks meant for what is underneath: tell the main process
+    // whether the pointer is over something we drew.
+    let lastOver = null;
+    window.addEventListener('mousemove', (e) => {
+      const t = e.target;
+      const over = !!(t && t !== document.body && t !== document.documentElement && t.id !== 'cards');
+      if (over !== lastOver) { lastOver = over; window.notchAPI.setSolid(over); }
+    });
+
+    // On the notch: click a ring to pin (or unpin) its card, double-click it to
+    // detach its full panel (same as the card's expand icon), click the small
+    // circle to pin the notch, drag to move along the edge (or across the
+    // screen to the other edge).
+    // A single click waits out the double-click window before pinning, so a
+    // double-click does not flash the card on and off before detaching.
+    const DBL_MS = 220;
+    let clickTimer = null, clickId = null;
+    let down = null, downX = 0, dragged = false, downOn = null;
+    window.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || geoState !== 'open') return;
+      const t = e.target;
+      if (t.closest('#npin')) { window.notchAPI.pin('notch', null, !pinned); return; }
+      if (!(t.id === 'mat' || t.closest('#shape'))) return;
+      down = e.screenY; downX = e.screenX; dragged = false;
+      const cell = t.closest('.cell');
+      downOn = cell ? cell.dataset.id : null;
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (down == null) return;
+      if (!dragged && Math.hypot(e.screenY - down, e.screenX - downX) > 4) {
+        dragged = true;
+        window.notchAPI.drag('start', down, downX);
+      }
+      if (dragged) window.notchAPI.drag('move', e.screenY, e.screenX);
+    });
+    window.addEventListener('mouseup', () => {
+      if (down == null) return;
+      if (dragged) window.notchAPI.drag('end');
+      else if (downOn) {
+        const id = downOn;
+        if (clickTimer && clickId === id) {
+          clearTimeout(clickTimer); clickTimer = null;
+          window.notchAPI.detach(id);
+        } else {
+          clearTimeout(clickTimer);
+          clickId = id;
+          clickTimer = setTimeout(() => {
+            clickTimer = null;
+            window.notchAPI.pin('card', id, !pinnedCards.has(id));
+          }, DBL_MS);
+        }
+      }
+      down = null; dragged = false;
+    });
+    document.addEventListener('contextmenu', (e) => { e.preventDefault(); window.notchAPI.contextMenu(); });
+    setInterval(layoutCards, 30000);        // keep "resets in …" current
+    // Window resized (fold finished, cards opened or closed): redraw in place.
+    window.addEventListener('resize', () => { drawShape(); layoutCards(); });
+    drawShape();
+    // Transitions only after the first paint, so the page does not animate in
+    // from its default state on load.
+    requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add('ready')));
+  </script>
+</body>
+</html>

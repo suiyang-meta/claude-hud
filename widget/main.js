@@ -15,12 +15,15 @@ const PetLibrary = require('./pet/PetLibrary');
 const PetButton = require('./pet/PetButton');
 const codexAdapter = require('./pet/CodexPetAdapter');
 const OAuthUsage = require('./usage/OAuthUsage');
+const CodexUsage = require('./usage/CodexUsage');
+const NotchWindow = require('./notch/NotchWindow');
 const { LocalUsageScanner } = require('./usage/LocalUsage');
 
 let mainWindow;
 // Quota now comes from Claude Code's own OAuth credential; the extension
 // WebSocket is kept only as a fallback for when that read fails.
-let usageState = { quota: null, local: null, profile: null, quotaStale: false };
+let usageState = { quota: null, local: null, profile: null, quotaStale: false,
+                   codex: null, codexStale: false, codexNote: null };
 let extensionData = null;
 let scanner;
 
@@ -58,6 +61,10 @@ function refreshOpacity() {
 }
 let wss;
 let isHovered = false;
+
+let notch;
+let panelVisible = false;
+let codexWindow = null;       // Codex's own panel, created on first open
 
 let petWindow;
 let petLibrary;
@@ -170,12 +177,15 @@ function initPet() {
   petLibrary.setHudWindow(mainWindow);
   petLibrary.setPreferLeft(libraryPreferLeft);
 
+  // Both start hidden: they follow the panel, and the panel starts folded.
   petWindow = new PetWindow({ anchor });
+  petWindow.setVisible(panelVisible);
   petWindow.attachHud(mainWindow);
 
   petButton = new PetButton({
     onClick: () => { if (petLibrary) petLibrary.toggle(); },
   });
+  petButton.setVisible(panelVisible);
   petButton.attachHud(mainWindow);
   petLibrary.setPetButton(petButton);   // library opens on button's current side
 
@@ -217,6 +227,7 @@ function createWindow() {
     } : {}),
     minWidth: 210,
     maxWidth: 1000,
+    show: false,          // the notch is the resting form; a click opens this
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -232,7 +243,7 @@ function createWindow() {
   // Poll cursor position every 80ms to detect hover
   let lastBtnRevealed = null;
   setInterval(() => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (!mainWindow || mainWindow.isDestroyed() || !panelVisible) return;
     const cursor = screen.getCursorScreenPoint();
     const bounds = mainWindow.getBounds();
     const overHud = (
@@ -270,8 +281,128 @@ function createWindow() {
   }, 80);
 }
 
+// ---- Notch <-> panel ----
+function setPetsVisible(v) {
+  if (petWindow) petWindow.setVisible(v);
+  if (petButton) petButton.setVisible(v);
+  if (!v && petLibrary) petLibrary.close();
+}
+
+/**
+ * Where a panel opens: beside the notch, or — if the other provider's panel is
+ * already sitting there — just to the left of that one, so they never overlap.
+ * The notch stays on the edge (folded) while panels are open, so the other ring
+ * is always one hover away.
+ */
+function placePanel(win, other) {
+  const b = win.getBounds();
+  let at = notch ? notch.anchorFor(b.width, b.height) : { x: b.x, y: b.y };
+  if (other && !other.isDestroyed() && other.isVisible()) {
+    // Line up away from the notch's edge, so the two panels never overlap.
+    const o = other.getBounds();
+    at = notch && notch.side === 'left'
+      ? { x: o.x + o.width + 10, y: o.y }
+      : { x: Math.max(0, o.x - b.width - 10), y: o.y };
+  }
+  win.setBounds({ ...b, ...at });
+}
+
+function openPanel() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (notch) notch.fold();
+  if (panelVisible) { mainWindow.show(); return; }
+  placePanel(mainWindow, codexWindow);
+  panelVisible = true;
+  mainWindow.show();
+  setPetsVisible(true);
+}
+
+function foldPanel() {
+  panelVisible = false;
+  isHovered = false;
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
+  setPetsVisible(false);
+  if (petButton) petButton.setHovered(false);
+}
+
+// ---- Codex panel: its own window and its own look, never merged into Claude's ----
+const CODEX_W = 248;
+function codexPayload() {
+  return { codex: usageState.codex, codexStale: usageState.codexStale, codexNote: usageState.codexNote };
+}
+
+function openCodexPanel() {
+  if (notch) notch.fold();
+  if (!codexWindow || codexWindow.isDestroyed()) {
+    codexWindow = new BrowserWindow({
+      width: CODEX_W, height: 190,
+      frame: false,
+      transparent: !IS_MAC,
+      backgroundColor: '#00000000',
+      alwaysOnTop: true,
+      resizable: false,
+      skipTaskbar: true,
+      hasShadow: true,
+      show: false,
+      ...(IS_MAC ? { roundedCorners: true, vibrancy: 'under-window', visualEffectState: 'active' } : {}),
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'codex', 'codex-preload.js'),
+      },
+    });
+    codexWindow.setAlwaysOnTop(true, 'floating', 1);
+    codexWindow.setVisibleOnAllWorkspaces(true);
+    codexWindow.loadFile(path.join(__dirname, 'codex', 'codex-panel.html'));
+    codexWindow.on('closed', () => { codexWindow = null; });
+    placePanel(codexWindow, panelVisible ? mainWindow : null);
+    codexWindow.once('ready-to-show', () => codexWindow && codexWindow.show());
+  } else if (!codexWindow.isVisible()) {
+    placePanel(codexWindow, panelVisible ? mainWindow : null);
+    codexWindow.show();
+  } else {
+    codexWindow.show();
+  }
+  codexLastTry = 0;       // opening is a good moment for a fresh number
+  refreshCodex();
+}
+
+function foldCodexPanel() {
+  if (codexWindow && !codexWindow.isDestroyed()) codexWindow.hide();
+}
+
+function pushCodex() {
+  if (codexWindow && !codexWindow.isDestroyed()) {
+    codexWindow.webContents.send('codex:update', codexPayload());
+  }
+}
+
+ipcMain.on('codex:get-data', (e) => e.reply('codex:update', codexPayload()));
+ipcMain.on('codex:refresh', () => { codexLastTry = 0; refreshCodex(); });
+ipcMain.on('codex:fold', () => foldCodexPanel());
+ipcMain.on('codex:open-usage', () => shell.openExternal('https://chatgpt.com/codex'));
+ipcMain.on('codex:context-menu', () => showContextMenu(codexWindow));
+ipcMain.on('codex:fit-height', (e, h) => {
+  if (!codexWindow || codexWindow.isDestroyed()) return;
+  const b = codexWindow.getBounds();
+  const height = Math.max(120, Math.round(h || 0));
+  if (height !== b.height) codexWindow.setBounds({ ...b, height });
+});
+
+function initNotch() {
+  const prefs = loadPrefs();
+  notch = new NotchWindow({
+    prefs: prefs.notch || {},
+    onPrefs: (n) => { const p = loadPrefs(); p.notch = { ...(p.notch || {}), ...n }; savePrefs(p); },
+    onActivate: (id) => (id === 'codex' ? openCodexPanel() : openPanel()),
+    onContextMenu: () => showContextMenu(notch.window),
+  });
+  screen.on('display-metrics-changed', () => notch && notch.reseat());
+  screen.on('display-removed', () => notch && notch.reseat());
+}
+
 // ---- Context menu (right-click on HUD) ----
-function showContextMenu() {
+function showContextMenu(fromWindow) {
   const prefs = loadPrefs();
   const currentAnchor = (prefs.pet && prefs.pet.anchor) || 'BR';
   const anchorMenu = ['TL','TC','LC','BL','BC','BR','RC'].map((a) => ({
@@ -284,7 +415,24 @@ function showContextMenu() {
     },
   }));
 
+  const codexOpen = codexWindow && !codexWindow.isDestroyed() && codexWindow.isVisible();
   const template = [
+    panelVisible
+      ? { label: 'Fold Claude Panel', click: () => foldPanel() }
+      : { label: 'Open Claude Panel', click: () => openPanel() },
+    ...(usageState.codex ? [codexOpen
+      ? { label: 'Fold Codex Panel', click: () => foldCodexPanel() }
+      : { label: 'Open Codex Panel', click: () => openCodexPanel() }] : []),
+    { type: 'separator' },
+    ...(notch ? [
+      { label: 'Pin Notch', type: 'checkbox', checked: notch.isPinned(),
+        click: (item) => notch.setPinned(item.checked) },
+      { label: 'Notch Side', submenu: ['right', 'left'].map((side) => ({
+        label: side === 'right' ? 'Right Edge' : 'Left Edge', type: 'radio',
+        checked: notch.side === side, click: () => notch.setSide(side),
+      })) },
+      { type: 'separator' },
+    ] : []),
     {
       label: 'Launch at Login',
       type: 'checkbox',
@@ -332,7 +480,8 @@ function showContextMenu() {
     }
   ];
   const menu = Menu.buildFromTemplate(template);
-  if (mainWindow) menu.popup({ window: mainWindow });
+  const win = fromWindow || mainWindow;
+  if (win && !win.isDestroyed()) menu.popup({ window: win });
 }
 
 
@@ -391,6 +540,47 @@ function pushUsage() {
     mainWindow.webContents.send('usage-update', { ...usageState, quota });
   }
   if (petWindow) petWindow.updateUsage(toPetShape());
+  if (notch) notch.update(notchPayload());
+  pushCodex();
+}
+
+/** What the notch draws: one ring per provider, plus rows for its hover card. */
+function notchPayload() {
+  const providers = [];
+  const q = usageState.quota || fromExtensionShape(extensionData);
+  const row = (label, r) => r && typeof r.percent === 'number'
+    ? { label, percent: r.percent, resetsAt: r.resetsAt || null, resetsText: r.resetsText || null }
+    : null;
+  const plan = (usageState.profile && usageState.profile.plan) || (q && q.plan) || null;
+  providers.push({
+    id: 'claude', label: 'Claude', plan,
+    ring: q && q.session ? q.session.percent : null,
+    stale: !q || !!usageState.quotaStale,
+    note: q ? (usageState.quotaStale ? 'Open Claude Code once to renew its sign-in' : null)
+            : 'Sign in to Claude Code once',
+    rows: q ? [row('Current session', q.session), row('Weekly · all models', q.weeklyAll)].filter(Boolean) : [],
+  });
+  const c = usageState.codex;
+  if (c) {
+    providers.push({
+      id: 'codex', label: 'Codex', plan: c.plan,
+      ring: c.primary ? c.primary.percent : (c.secondary ? c.secondary.percent : null),
+      stale: !!usageState.codexStale,
+      note: usageState.codexNote,
+      rows: [row(windowLabel(c.primary, '5-hour'), c.primary),
+             row(windowLabel(c.secondary, 'Weekly'), c.secondary)].filter(Boolean),
+    });
+  }
+  return { providers };
+}
+
+function windowLabel(w, fallback) {
+  const s = w && w.windowSeconds;
+  if (!s) return fallback;
+  if (s === 604800) return 'Weekly';
+  if (s % 3600 === 0 && s < 86400) return (s / 3600) + '-hour';
+  if (s % 86400 === 0) return (s / 86400) + '-day';
+  return fallback;
 }
 
 const QUOTA_INTERVAL = 75000;
@@ -432,6 +622,46 @@ function scheduleQuota() {
   quotaTimer = setTimeout(refreshQuota, QUOTA_INTERVAL + quotaBackoff);
 }
 
+// Codex has no session events to key off, so it is polled on a fixed, gentle
+// cadence. 'absent' (never signed in / API-key mode) hides the ring entirely;
+// every other failure keeps the last reading and marks it stale.
+const CODEX_INTERVAL = 150000;
+const CODEX_BACKOFF_MAX = 1800000;   // 30 min
+let codexBackoff = 0;
+let codexTimer = null;
+let codexInFlight = false;
+let codexLastTry = 0;
+
+async function refreshCodex() {
+  // A manual or panel-open refresh must not hammer the endpoint.
+  if (codexInFlight || Date.now() - codexLastTry < 20000) return;
+  codexInFlight = true;
+  codexLastTry = Date.now();
+  try {
+    usageState.codex = await CodexUsage.fetchQuota();
+    usageState.codexStale = false;
+    usageState.codexNote = null;
+    codexBackoff = 0;
+  } catch (e) {
+    if (e.absent) {
+      usageState.codex = null;
+    } else {
+      if (e.status === 429) {
+        codexBackoff = Math.min(CODEX_BACKOFF_MAX, codexBackoff ? codexBackoff * 2 : CODEX_INTERVAL);
+      }
+      usageState.codexNote = (e.status === 401 || e.status === 403)
+        ? 'Open Codex once to renew its sign-in' : null;
+      if (usageState.codex) usageState.codexStale = true;
+      console.log('[HUD] codex usage unavailable:', e.message);
+    }
+  } finally {
+    codexInFlight = false;
+    try { pushUsage(); } catch (err) { console.log('[HUD] push failed:', err.message); }
+    if (codexTimer) clearTimeout(codexTimer);
+    codexTimer = setTimeout(refreshCodex, CODEX_INTERVAL + codexBackoff);
+  }
+}
+
 async function refreshLocal() {
   try {
     await scanner.refresh();
@@ -448,6 +678,7 @@ function startUsageService() {
     .then((prof) => { usageState.profile = prof; pushUsage(); })
     .catch(() => {});
   refreshQuota();          // reschedules itself, with backoff on 429
+  refreshCodex();          // same, on its own cadence
   refreshLocal();
   setInterval(refreshLocal, 30000);
 
@@ -458,6 +689,8 @@ function startUsageService() {
     console.log('[HUD] system resumed — refreshing');
     quotaBackoff = 0;
     refreshQuota();
+    codexLastTry = 0;
+    refreshCodex();
     refreshLocal();
   });
   powerMonitor.on('unlock-screen', () => { quotaBackoff = 0; refreshQuota(); });
@@ -503,9 +736,11 @@ ipcMain.on('set-opacity', (event, val) => {
   if (mainWindow) mainWindow.setOpacity(val);
 });
 ipcMain.on('close-app', () => app.quit());
+ipcMain.on('fold-panel', () => foldPanel());
 ipcMain.on('refresh-now', () => {
   quotaBackoff = 0;
   refreshQuota();
+  refreshCodex();
   refreshLocal();
 });
 
@@ -569,6 +804,7 @@ app.whenReady().then(() => {
   startWebSocketServer();
   createWindow();
   initPet();
+  initNotch();
   startUsageService();
 });
 
