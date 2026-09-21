@@ -32,7 +32,7 @@
 <body>
 
 <h1>HUD for Claude — Privacy Policy</h1>
-<p class="updated">Last updated: August 21, 2026</p>
+<p class="updated">Last updated: September 21, 2026</p>
 
 <p>HUD for Claude is a desktop app (macOS) with an optional Chrome extension. Both are
 built by a single independent developer. This policy explains exactly what is read,
@@ -41,8 +41,9 @@ where it goes, and what is stored.</p>
 <h2>Short version</h2>
 <p>No data is sent to the developer or to any third party. There are no servers, no
 analytics, no accounts, no tracking. The app reads files already on your computer, and
-makes one kind of network request: asking Anthropic about <em>your own</em> account,
-using <em>your own</em> credential that Claude Code already stored on this machine.</p>
+makes one kind of network request: asking Anthropic — and, if you use Codex, OpenAI —
+about <em>your own</em> account, using <em>your own</em> credential that Claude Code or
+the Codex CLI already stored on this machine.</p>
 
 <h2>What the desktop app reads</h2>
 <ul>
@@ -55,6 +56,10 @@ using <em>your own</em> credential that Claude Code already stored on this machi
       it is displaying. Shown on your screen only.</li>
   <li><strong>Your plan's usage allowance</strong> — session and weekly percentages, and
       when they reset.</li>
+  <li><strong>Your Codex sign-in, from <code>~/.codex/auth.json</code></strong> — only if
+      that file exists, which means you have signed in to the Codex CLI with a ChatGPT
+      account. It is used only to ask OpenAI for your own Codex rate-limit windows. If
+      the file is absent, the Codex ring simply does not appear.</li>
   <li><strong>Your local Claude Code transcripts</strong>
       (<code>~/.claude/projects/</code>) — but only each API call's timestamp, model
       name, and token counts. <strong>The text of your prompts and Claude's replies is
@@ -67,6 +72,13 @@ using <em>your own</em> credential that Claude Code already stored on this machi
       the old one is renewed and invalidates the previous one, so the app must store the
       replacement or Claude Code would be signed out. It writes back only that renewed
       credential, to the same entry it read from, and verifies the write.</li>
+  <li><strong>Back to <code>~/.codex/auth.json</code>:</strong> your Codex sign-in expires
+      about ten days after it is issued, and only the Codex CLI renews it — which never
+      happens on a machine where that CLI is not being run. So when it is within an hour
+      of expiring, the app renews it the same way Codex would and writes the replacement
+      back. OpenAI issues a new credential each time and invalidates the previous one, so
+      the file is rewritten whole, atomically, with every other key in it preserved, and
+      read back to confirm the write before the new credential is used.</li>
   <li><strong>A local cache</strong> at
       <code>~/Library/Application Support/claude-hud/usage-cache.json</code> — token
       counters per day and model, so the app doesn't rescan every file each time. It
@@ -75,10 +87,17 @@ using <em>your own</em> credential that Claude Code already stored on this machi
 </ul>
 
 <h2>Network requests</h2>
-<p>The app talks to exactly one host: <code>api.anthropic.com</code>, to read your own
-account's usage allowance and to renew your own credential. Nothing is sent to the
-developer. There are no analytics SDKs, crash reporters, ad networks, or third-party
-APIs of any kind.</p>
+<p>The app talks to these hosts and no others:</p>
+<ul>
+  <li><code>api.anthropic.com</code> — to read your own Claude usage allowance and to
+      renew your own Claude credential.</li>
+  <li><code>chatgpt.com</code> — to read your own Codex rate-limit windows. Only if you
+      have a Codex sign-in on this machine.</li>
+  <li><code>auth.openai.com</code> — to renew that Codex sign-in. Only if you have one,
+      and only when it is about to expire.</li>
+</ul>
+<p>Nothing is sent to the developer. There are no analytics SDKs, crash reporters, ad
+networks, or third-party APIs of any kind.</p>
 
 <h2>The Chrome extension</h2>
 <p><strong>On macOS it is not needed</strong> — the keychain route above supplies the

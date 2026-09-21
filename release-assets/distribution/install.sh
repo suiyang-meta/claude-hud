@@ -13,11 +13,13 @@ if [ -z "$DMG" ]; then
 fi
 
 printf "\n${B}1/4  检查前提${N}\n"
-if security find-generic-password -s "Claude Code-credentials" >/dev/null 2>&1; then
+if security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null \
+     | grep -q '"accessToken":"[^"]'; then
   printf "  ${G}✓${N} 找到 Claude Code 凭证\n"
 else
-  printf "  ${Y}!${N} 没找到 Claude Code 凭证\n"
-  printf "      配额那两条会是空的。请先安装 Claude Code 并登录一次：\n"
+  printf "  ${Y}!${N} 没找到可用的 Claude Code 凭证\n"
+  printf "      登出或过期后那条记录还在、令牌是空的，所以这里看的是令牌本身。\n"
+  printf "      配额那两条会是空的。请先安装 Claude Code 并跑一次 claude auth login：\n"
   printf "      https://claude.com/claude-code\n"
 fi
 COUNT=$(find "$HOME/.claude/projects" -name '*.jsonl' 2>/dev/null | wc -l | tr -d ' ')
