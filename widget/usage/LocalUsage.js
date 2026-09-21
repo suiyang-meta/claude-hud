@@ -15,9 +15,10 @@
  *     requestIds are only unique per file, hence the (file, requestId) key.
  *
  *  2. WEIGHTING. Raw token totals are meaningless because cache_read dominates
- *     volume (~453M of 460M on a busy day) but bills at a tenth. We fold the
- *     price multipliers in so the dollar figure reflects what this usage would
- *     actually cost at API list price.
+ *     volume (~453M of 460M on a busy day) but bills at a fraction of input —
+ *     a tenth on most models, a fortieth on Fable/Mythos 5.1. We fold the
+ *     per-model price multipliers in so the dollar figure reflects what this
+ *     usage would actually cost at API list price.
  */
 const fs = require('fs');
 const path = require('path');
@@ -27,20 +28,33 @@ const readline = require('readline');
 const ROOT = path.join(os.homedir(), '.claude', 'projects');
 
 // Cache-pricing multipliers, relative to base input price (Anthropic docs).
-const W_CACHE_READ = 0.1;    // cache hit
+const W_CACHE_READ = 0.1;    // cache hit — the rate everywhere except Fable/Mythos 5.1
 const W_CACHE_1H   = 2.0;    // 1-hour TTL write — 96% of this user's writes
 const W_CACHE_5M   = 1.25;   // 5-minute TTL write
 
-// USD per 1M tokens [input, output]. List price, checked 2026-06-24.
+// Cache reads are 0.1× base input on every model but one: Claude Fable 5.1
+// reads at 0.025× ($0.25/MTok). That is a 4× difference on the single largest
+// token category there is — cache_read is ~97% of volume — so treating it as a
+// global constant overstated Fable 5.1 spend by ~75% of its own bill. The rate
+// is therefore per-model, not global.
+const W_CACHE_READ_FABLE_51 = 0.025;
+
+// USD per 1M tokens [input, output, cacheReadMultiplier]. List price, checked
+// 2026-09-21 against platform.claude.com prompt-caching + pricing docs.
 // Unknown models still count tokens; they just contribute $0.
 const PRICE = {
-  'claude-fable-5':            [10, 50],
+  // Claude Mythos 5.1 is documented as sharing Fable 5.1's pricing and API
+  // surface; whether it also shares the 0.025× cache-read rate was still open
+  // at launch. Priced as its twin — revisit if the docs settle it otherwise.
+  'claude-mythos-5-1':         [10, 50, W_CACHE_READ_FABLE_51],
+  'claude-fable-5-1':          [10, 50, W_CACHE_READ_FABLE_51],
+  'claude-fable-5':            [10, 50],   // 5.0 reads at the ordinary 0.1×
   'claude-mythos-5':           [10, 50],
   'claude-opus-5':             [5, 25],
   'claude-opus-4-8':           [5, 25],
   'claude-opus-4-7':           [5, 25],
   'claude-opus-4-6':           [5, 25],
-  'claude-sonnet-5':           [3, 15],
+  'claude-sonnet-5':           [2, 10],
   'claude-sonnet-4-6':         [3, 15],
   'claude-haiku-4-5-20251001': [1, 5],
   'claude-haiku-4-5':          [1, 5],
@@ -57,10 +71,10 @@ const PRICE = {
  * the tier prices a new model correctly on day one.
  */
 const TIER_PRICE = {
-  fable:  [10, 50],
-  mythos: [10, 50],
+  fable:  [10, 50, W_CACHE_READ_FABLE_51],
+  mythos: [10, 50, W_CACHE_READ_FABLE_51],
   opus:   [5, 25],
-  sonnet: [3, 15],
+  sonnet: [2, 10],
   haiku:  [1, 5],
 };
 
@@ -68,9 +82,13 @@ const TIER_PRICE = {
 const unpricedModels = new Set();
 
 function rateFor(model) {
-  const exact = PRICE[model];
+  // Claude Code tags the long-context variant as e.g. "claude-opus-5[1m]". It is
+  // the same model at the same list price; without stripping the tag it misses
+  // the exact table and only survives via the tier fallback.
+  const id = String(model || '').replace(/\[[^\]]*\]$/, '');
+  const exact = PRICE[id];
   if (exact) return exact;
-  const tier = String(model || '').replace(/^claude-/, '').split('-')[0];
+  const tier = id.replace(/^claude-/, '').split('-')[0];
   const byTier = TIER_PRICE[tier];
   if (byTier) return byTier;
   if (model && model !== '<synthetic>' && !unpricedModels.has(model)) {
@@ -88,15 +106,22 @@ function addInto(dst, src) {
   dst.cacheRead += src.cacheRead;
 }
 
-/** Price-weighted input-equivalent tokens. */
-function weightedInput(b) {
-  return b.input + b.cache1h * W_CACHE_1H + b.cache5m * W_CACHE_5M + b.cacheRead * W_CACHE_READ;
+/**
+ * Price-weighted input-equivalent tokens.
+ *
+ * wRead defaults to the 0.1× that holds for every model but Fable/Mythos 5.1.
+ * costUSD passes the model's own rate; the aggregate display figure, which spans
+ * models and has no single rate, keeps the default.
+ */
+function weightedInput(b, wRead = W_CACHE_READ) {
+  return b.input + b.cache1h * W_CACHE_1H + b.cache5m * W_CACHE_5M + b.cacheRead * wRead;
 }
 
 function costUSD(model, b) {
   const p = rateFor(model);
   if (!p) return 0;
-  return (weightedInput(b) / 1e6) * p[0] + (b.output / 1e6) * p[1];
+  const wRead = p[2] != null ? p[2] : W_CACHE_READ;
+  return (weightedInput(b, wRead) / 1e6) * p[0] + (b.output / 1e6) * p[1];
 }
 
 /** Raw token count, no weighting — the honest "how many tokens" number. */
@@ -316,4 +341,4 @@ class LocalUsageScanner {
   }
 }
 
-module.exports = { LocalUsageScanner, PRICE, W_CACHE_READ, W_CACHE_1H, W_CACHE_5M };
+module.exports = { LocalUsageScanner, PRICE, W_CACHE_READ, W_CACHE_READ_FABLE_51, W_CACHE_1H, W_CACHE_5M };
