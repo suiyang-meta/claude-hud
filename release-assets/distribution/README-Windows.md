@@ -77,7 +77,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 | **双击环** / 卡片右上角的放大图标 | 分离成那家的完整面板 |
 | **notch 底部的小圆点** | pin 住 notch，让它一直展开 |
 | **上下拖 notch，或直接拖展开的卡片** | 换位置；拖过屏幕中线就换到左边 / 右边。卡片上的 pin / 放大两个图标仍是纯点击 |
-| **右键 notch** | pin、左右边、开机自启、**登录 Claude Code / Codex**、退出 |
+| **右键 notch** | pin、左右边、开机自启、**登录 Claude Code / Codex**、退出（`Show Dock Icon` 是 macOS 专有，Windows 上不出现） |
 
 ### Claude 完整面板
 

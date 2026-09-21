@@ -111,6 +111,43 @@ function isAutoStartEnabled() {
   return loadPrefs().openAtLogin !== false;
 }
 
+/**
+ * Show or hide the Dock icon (macOS only).
+ *
+ * The HUD lives on the edge of the screen and is driven entirely from its own
+ * right-click menu, so its Dock tile is a slot taken for nothing. Hiding it
+ * makes this an accessory app — no Dock tile and no menu bar — which is
+ * harmless here because every window is already focusable: false and Quit is
+ * in that same menu.
+ */
+function applyDockIcon(visible) {
+  if (process.platform !== 'darwin') return;
+  // The activation policy, not app.dock.hide(). Measured: hide() takes, and
+  // then the next window this app creates puts the tile straight back —
+  // tracing each startup step showed dock.isVisible flip to true across
+  // createWindow(), and re-hiding at 0 / 50 / 250ms after each window never
+  // held. Setting the policy holds.
+  app.setActivationPolicy(visible ? 'regular' : 'accessory');
+  if (visible && app.dock) app.dock.show();
+}
+
+function isDockIconVisible() {
+  return loadPrefs().showDockIcon !== false;   // shown unless turned off
+}
+
+/**
+ * Creating a window puts the app back to a regular activation policy, and the
+ * Dock tile comes back with it — so hiding it once at startup does not hold:
+ * createWindow() undoes it a few lines later, and the lazily-created Codex
+ * panel would undo it again hours in. Measured, not assumed: tracing each
+ * startup step showed dock.isVisible flip from false to true across
+ * createWindow(). The preference is therefore re-asserted after every window.
+ */
+app.on('browser-window-created', () => {
+  // The event fires mid construction, hence the next tick.
+  if (!isDockIconVisible()) setImmediate(() => applyDockIcon(false));
+});
+
 // ---- Pet bootstrap ----
 function ensureDefaultPetInstalled() {
   if (!fs.existsSync(PETS_ROOT)) fs.mkdirSync(PETS_ROOT, { recursive: true });
@@ -556,6 +593,18 @@ function showContextMenu(fromWindow) {
         savePrefs(p);
       }
     },
+    ...(process.platform === 'darwin' ? [{
+      label: 'Show Dock Icon',
+      type: 'checkbox',
+      checked: isDockIconVisible(),
+      click: (menuItem) => {
+        const visible = menuItem.checked;
+        const p = loadPrefs();
+        p.showDockIcon = visible;
+        savePrefs(p);          // saved first: the re-assert hook reads it back
+        applyDockIcon(visible);
+      }
+    }] : []),
     { type: 'separator' },
     {
       label: 'Pet Library',
@@ -922,6 +971,7 @@ app.whenReady().then(() => {
   // Apply persisted auto-start preference (first launch defaults to ON)
   const prefs = loadPrefs();
   applyAutoStart(prefs.openAtLogin !== false);
+  applyDockIcon(prefs.showDockIcon !== false);
   if (prefs.firstLaunch) {
     delete prefs.firstLaunch;
     savePrefs(prefs);
