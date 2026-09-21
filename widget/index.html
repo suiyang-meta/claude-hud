@@ -306,7 +306,7 @@
       if (plan) { planEl.textContent = plan; planEl.style.display = ''; }
       liveDot.classList.toggle('off', !quota || state.quotaStale);
       liveDot.title = state.quotaStale
-        ? 'Quota is stale — open Claude Code once to renew its token'
+        ? 'Quota is stale — right-click → Sign in to Claude Code'
         : 'Live';
 
       const lean = compact || mode === 'trim';   // hide secondary blocks

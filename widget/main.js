@@ -9,6 +9,7 @@ const REPO_URL = 'https://github.com/suiyang-meta/claude-hud';
 const AUTHOR = 'Sui1491';
 const path = require('path');
 const fs = require('fs');
+const { execFile, spawn } = require('child_process');
 const WebSocket = require('ws');
 const PetWindow = require('./pet/PetWindow');
 const PetLibrary = require('./pet/PetLibrary');
@@ -402,6 +403,31 @@ function initNotch() {
 }
 
 // ---- Context menu (right-click on HUD) ----
+/**
+ * Open a terminal sitting at `claude`, so the CLI can run its own /login.
+ *
+ * The quota comes from Claude Code's standalone OAuth credential, which the
+ * desktop app never touches — it carries its own session. So a user who only
+ * ever opens the desktop app can have a live Claude and a dead credential at
+ * the same time, and "open Claude Code" reads as advice they have already
+ * followed. Handing them a terminal is the shortest honest path to it.
+ *
+ * Deliberately a terminal rather than an in-app OAuth flow: the login stays in
+ * Claude Code's hands, and a login shell brings the user's own PATH, which a
+ * GUI-launched Electron process does not have.
+ */
+function openClaudeSignIn() {
+  if (process.platform === 'darwin') {
+    execFile('osascript',
+      ['-e', 'tell application "Terminal" to do script "claude"',
+       '-e', 'tell application "Terminal" to activate'],
+      (err) => { if (err) console.log('[HUD] sign-in terminal failed:', err.message); });
+  } else if (process.platform === 'win32') {
+    try { spawn('cmd.exe', ['/c', 'start', '', 'cmd.exe', '/k', 'claude'], { detached: true }).unref(); }
+    catch (e) { console.log('[HUD] sign-in terminal failed:', e.message); }
+  }
+}
+
 function showContextMenu(fromWindow) {
   const prefs = loadPrefs();
   const currentAnchor = (prefs.pet && prefs.pet.anchor) || 'BR';
@@ -453,6 +479,13 @@ function showContextMenu(fromWindow) {
     {
       label: 'Pet Anchor',
       submenu: anchorMenu,
+    },
+    { type: 'separator' },
+    {
+      label: usageState.quotaStale || !usageState.quota
+        ? 'Sign in to Claude Code (quota is stale)…'
+        : 'Sign in to Claude Code…',
+      click: () => openClaudeSignIn(),
     },
     { type: 'separator' },
     {
@@ -556,8 +589,8 @@ function notchPayload() {
     id: 'claude', label: 'Claude', plan,
     ring: q && q.session ? q.session.percent : null,
     stale: !q || !!usageState.quotaStale,
-    note: q ? (usageState.quotaStale ? 'Open Claude Code once to renew its sign-in' : null)
-            : 'Sign in to Claude Code once',
+    note: q ? (usageState.quotaStale ? 'Sign-in expired — right-click → Sign in to Claude Code' : null)
+            : 'Right-click → Sign in to Claude Code',
     rows: q ? [row('Current session', q.session), row('Weekly · all models', q.weeklyAll)].filter(Boolean) : [],
   });
   const c = usageState.codex;

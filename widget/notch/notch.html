@@ -320,6 +320,10 @@
       el.addEventListener('mouseenter', () => clearTimeout(hideTimer));
       el.addEventListener('mouseleave', hideSoon);
       el.addEventListener('click', (e) => {
+        // A drag that started on the card still ends in a click here; the pin
+        // and expand icons must not fire because the card was used as a handle.
+        // mouseup clears `dragged` before click runs, hence the separate flag.
+        if (justDragged) return;
         if (e.target.closest('.cpin')) window.notchAPI.pin('card', id, !pinnedCards.has(id));
         else if (e.target.closest('.cexp')) window.notchAPI.detach(id);
       });
@@ -383,6 +387,7 @@
       if (ask !== lastAsk) { lastAsk = ask; window.notchAPI.layout(out.length > 0, worst); }
     }
     function hideSoon() {
+      if (dragged) return;              // the card is the drag handle right now
       clearTimeout(hideTimer);
       hideTimer = setTimeout(() => { hoverId = null; layoutCards(); }, 140);
     }
@@ -429,14 +434,19 @@
     // double-click does not flash the card on and off before detaching.
     const DBL_MS = 220;
     let clickTimer = null, clickId = null;
-    let down = null, downX = 0, dragged = false, downOn = null;
+    let down = null, downX = 0, dragged = false, downOn = null, justDragged = false;
     window.addEventListener('mousedown', (e) => {
       if (e.button !== 0 || geoState !== 'open') return;
       const t = e.target;
       if (t.closest('#npin')) { window.notchAPI.pin('notch', null, !pinned); return; }
-      if (!(t.id === 'mat' || t.closest('#shape'))) return;
+      // The open card is a drag handle as well: it is the biggest thing on
+      // screen, and reaching back to the sliver to move the HUD is a step the
+      // card's own surface can absorb. Its two icons stay pure clicks so the
+      // small targets never need a steady hand.
+      const onCard = t.closest('.card') && !t.closest('.cpin') && !t.closest('.cexp');
+      if (!(t.id === 'mat' || t.closest('#shape') || onCard)) return;
       down = e.screenY; downX = e.screenX; dragged = false;
-      const cell = t.closest('.cell');
+      const cell = onCard ? null : t.closest('.cell');
       downOn = cell ? cell.dataset.id : null;
     });
     window.addEventListener('mousemove', (e) => {
@@ -449,7 +459,8 @@
     });
     window.addEventListener('mouseup', () => {
       if (down == null) return;
-      if (dragged) window.notchAPI.drag('end');
+      justDragged = dragged;
+      if (dragged) { window.notchAPI.drag('end'); setTimeout(() => { justDragged = false; }, 0); }
       else if (downOn) {
         const id = downOn;
         if (clickTimer && clickId === id) {
