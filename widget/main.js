@@ -1,5 +1,5 @@
 /* HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT */
-const { app, BrowserWindow, ipcMain, powerMonitor, screen, Menu, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, powerMonitor, screen, Menu, shell } = require('electron');
 
 const IS_MAC = process.platform === 'darwin';
 
@@ -9,6 +9,7 @@ const REPO_URL = 'https://github.com/suiyang-meta/claude-hud';
 const AUTHOR = 'Sui1491';
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { execFile, spawn } = require('child_process');
 const WebSocket = require('ws');
 const PetWindow = require('./pet/PetWindow');
@@ -404,6 +405,46 @@ function initNotch() {
 
 // ---- Context menu (right-click on HUD) ----
 /**
+ * Where Claude Code's own installers leave the binary. `claude` alone is not
+ * enough: the native installer puts it in ~/.local/bin, which it adds to the
+ * PATH by editing a shell rc file — and a user who only ever opens the desktop
+ * app has a binary on disk that no login shell can see.
+ */
+function claudeBinCandidates() {
+  const home = os.homedir();
+  if (process.platform === 'win32') {
+    return [path.join(home, '.local', 'bin', 'claude.exe'),
+            path.join(home, '.local', 'bin', 'claude.cmd'),
+            path.join(home, 'AppData', 'Roaming', 'npm', 'claude.cmd')];
+  }
+  return [path.join(home, '.local', 'bin', 'claude'),
+          '/opt/homebrew/bin/claude',
+          '/usr/local/bin/claude',
+          path.join(home, '.bun', 'bin', 'claude'),
+          path.join(home, '.volta', 'bin', 'claude')];
+}
+
+/**
+ * The absolute path to `claude`, or '' when it cannot be found.
+ *
+ * Asks a login shell first so a PATH the user set up themselves wins over our
+ * guesses, then falls back to the known install locations.
+ */
+function resolveClaudeBin() {
+  const fromDisk = () => claudeBinCandidates().find((c) => {
+    try { fs.accessSync(c, fs.constants.X_OK); return true; } catch { return false; }
+  }) || '';
+  if (process.platform === 'win32') return Promise.resolve(fromDisk());
+  return new Promise((resolve) => {
+    execFile(process.env.SHELL || '/bin/zsh', ['-lc', 'command -v claude'],
+      { timeout: 6000 }, (err, stdout) => {
+        const hit = !err && String(stdout).trim().split('\n')[0].trim();
+        resolve(hit && path.isAbsolute(hit) ? hit : fromDisk());
+      });
+  });
+}
+
+/**
  * Open a terminal sitting at `claude`, so the CLI can run its own /login.
  *
  * The quota comes from Claude Code's standalone OAuth credential, which the
@@ -413,17 +454,31 @@ function initNotch() {
  * followed. Handing them a terminal is the shortest honest path to it.
  *
  * Deliberately a terminal rather than an in-app OAuth flow: the login stays in
- * Claude Code's hands, and a login shell brings the user's own PATH, which a
- * GUI-launched Electron process does not have.
+ * Claude Code's hands. It runs the binary by absolute path rather than by name,
+ * because the name is exactly what a fresh terminal turned out not to have.
  */
-function openClaudeSignIn() {
+async function openClaudeSignIn() {
+  const bin = await resolveClaudeBin();
+  if (!bin) {
+    dialog.showMessageBox({
+      type: 'info',
+      message: 'Claude Code is not installed on this machine',
+      detail: 'The HUD reads your usage from the Claude Code CLI\u2019s own sign-in, '
+            + 'which is separate from the Claude desktop app. Install it from '
+            + 'claude.com/claude-code, then sign in once and the bars fill in on their own.',
+      buttons: ['OK'],
+    });
+    return;
+  }
   if (process.platform === 'darwin') {
+    // AppleScript string, so a path with a quote or backslash has to be escaped.
+    const asStr = bin.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     execFile('osascript',
-      ['-e', 'tell application "Terminal" to do script "claude"',
+      ['-e', `tell application "Terminal" to do script "${asStr}"`,
        '-e', 'tell application "Terminal" to activate'],
       (err) => { if (err) console.log('[HUD] sign-in terminal failed:', err.message); });
   } else if (process.platform === 'win32') {
-    try { spawn('cmd.exe', ['/c', 'start', '', 'cmd.exe', '/k', 'claude'], { detached: true }).unref(); }
+    try { spawn('cmd.exe', ['/c', 'start', '', 'cmd.exe', '/k', bin], { detached: true }).unref(); }
     catch (e) { console.log('[HUD] sign-in terminal failed:', e.message); }
   }
 }
