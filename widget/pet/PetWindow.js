@@ -280,6 +280,9 @@ class PetWindow {
 
   loadPet(pet) {
     this.pet = pet;
+    // Nothing to draw behind a closed panel, and building the window to draw
+    // it there is what this whole suspend/resume exists to avoid.
+    if (!this.visible) return;
     this._ensureWindow();
     if (this._rendererReady) {
       this._sendPet(pet);
@@ -308,13 +311,33 @@ class PetWindow {
     this.pet = null;
   }
 
-  // The pet lives beside the panel, so it goes wherever the panel goes: hidden
-  // while the HUD is folded into the notch, back when the panel opens.
+  /**
+   * The pet follows the panel: gone while the HUD is folded into the notch,
+   * back when the panel opens.
+   *
+   * Torn down rather than merely hidden. Measured, with the app otherwise
+   * idle: the pet and button renderers left alive behind a closed panel cost
+   * 4.5 points of a core continuously — destroying them took the whole app
+   * from 5.2% to 0.7% — for two windows nobody can see. window.hide() alone
+   * does not buy that back.
+   */
   setVisible(v) {
     this.visible = !!v;
-    if (!this.window || this.window.isDestroyed()) return;
-    if (this.visible) { this._reposition(); this.window.showInactive(); }
-    else this.window.hide();
+    if (this.visible) {
+      const pet = this.pet;
+      if (!pet) return;                 // no active pet: nothing to bring back
+      if (this.window && !this.window.isDestroyed()) { // already up
+        this._reposition(); this.window.showInactive(); return;
+      }
+      this.loadPet(pet);                // recreates the window
+      this.stateMachine.start();
+      this._reposition();
+      if (this.window && !this.window.isDestroyed()) this.window.showInactive();
+      return;
+    }
+    const remembered = this.pet;
+    this.hide();                        // stops the state machine, closes the window
+    this.pet = remembered;              // …but the choice of pet survives the fold
   }
 
   updateUsage(data) {

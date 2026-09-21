@@ -93,6 +93,10 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 Codex 面板只有两条额度（5 小时、每周）和它们的重置时间；右上角 ✕ 收回边缘。
 
+### 资源占用
+
+空闲时约 **1% 单核 CPU、160 MB 内存**（在 Mac 上实测；Windows 未测）。宠物和它的小按钮只在面板打开时才存在，收回去就销毁。
+
 ### Codex（可选）
 
 这台电脑上装过 **Codex**、并且**用 ChatGPT 账号登录过**，notch 就会多出第二个环；没有的话就只有 Claude，不影响使用。

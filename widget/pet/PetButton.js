@@ -96,7 +96,9 @@ class PetButton {
 
   attachHud(hudWindow) {
     this.hudWindow = hudWindow;
-    this._ensureWindow();
+    // Only build the window if it is wanted on screen right now; attaching is
+    // bookkeeping, and behind a closed panel the window is the whole cost.
+    if (this.visible) this._ensureWindow();
     if (!hudWindow) return;
     hudWindow.on('move', () => this._reposition());
     hudWindow.on('resize', () => this._reposition());
@@ -168,11 +170,14 @@ class PetButton {
     this.window.webContents.send('button:active-pet', pet);
   }
 
+  // Torn down rather than hidden while the panel is closed — see the note on
+  // PetWindow.setVisible for the measurement that motivates it.
   setVisible(v) {
     this.visible = !!v;
-    if (!this.window || this.window.isDestroyed()) return;
-    if (this.visible) { this._reposition(); this.window.showInactive(); }
-    else this.window.hide();
+    if (!this.visible) { this.close(); return; }
+    this._ensureWindow();
+    this._reposition();
+    if (this.window && !this.window.isDestroyed()) this.window.showInactive();
   }
 
   close() {
