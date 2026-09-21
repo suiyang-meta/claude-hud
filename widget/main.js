@@ -405,38 +405,61 @@ function initNotch() {
 
 // ---- Context menu (right-click on HUD) ----
 /**
- * Where Claude Code's own installers leave the binary. `claude` alone is not
- * enough: the native installer puts it in ~/.local/bin, which it adds to the
- * PATH by editing a shell rc file — and a user who only ever opens the desktop
- * app has a binary on disk that no login shell can see.
+ * The two CLIs the HUD borrows a sign-in from, and where their installers put
+ * the binary. Running them by name is not enough: both install into a
+ * directory they add to the PATH by editing a shell rc file, and on a machine
+ * where the user only opens the GUI app that edit never happened — the binary
+ * is on disk and a fresh terminal still cannot see it.
  */
-function claudeBinCandidates() {
+const SIGN_IN = {
+  claude: {
+    bin: 'claude',
+    args: ['auth', 'login'],
+    title: 'Claude Code',
+    install: 'claude.com/claude-code',
+    why: 'The HUD reads your Claude usage from the Claude Code CLI’s own sign-in, '
+       + 'which is separate from the Claude desktop app.',
+    dirs: (home) => [path.join(home, '.local', 'bin')],
+  },
+  codex: {
+    bin: 'codex',
+    args: ['login'],
+    title: 'Codex',
+    install: 'npm i -g @openai/codex',
+    why: 'The HUD reads your Codex usage from the Codex CLI’s own ChatGPT sign-in '
+       + '(~/.codex/auth.json), which only the Codex CLI itself keeps alive.',
+    dirs: () => [],
+  },
+};
+
+/** Directories either CLI may be installed into, most specific first. */
+function binCandidates(spec) {
   const home = os.homedir();
+  const dirs = [...spec.dirs(home)];
   if (process.platform === 'win32') {
-    return [path.join(home, '.local', 'bin', 'claude.exe'),
-            path.join(home, '.local', 'bin', 'claude.cmd'),
-            path.join(home, 'AppData', 'Roaming', 'npm', 'claude.cmd')];
+    dirs.push(path.join(home, '.local', 'bin'),
+              path.join(home, 'AppData', 'Roaming', 'npm'));
+    return dirs.flatMap((d) => ['.exe', '.cmd', '.ps1'].map((x) => path.join(d, spec.bin + x)));
   }
-  return [path.join(home, '.local', 'bin', 'claude'),
-          '/opt/homebrew/bin/claude',
-          '/usr/local/bin/claude',
-          path.join(home, '.bun', 'bin', 'claude'),
-          path.join(home, '.volta', 'bin', 'claude')];
+  dirs.push(path.join(home, '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin',
+            path.join(home, '.bun', 'bin'), path.join(home, '.volta', 'bin'),
+            path.join(home, 'Library', 'pnpm'), path.join(home, '.npm-global', 'bin'));
+  return dirs.map((d) => path.join(d, spec.bin));
 }
 
 /**
- * The absolute path to `claude`, or '' when it cannot be found.
+ * The absolute path to a CLI, or '' when it cannot be found.
  *
  * Asks a login shell first so a PATH the user set up themselves wins over our
  * guesses, then falls back to the known install locations.
  */
-function resolveClaudeBin() {
-  const fromDisk = () => claudeBinCandidates().find((c) => {
+function resolveBin(spec) {
+  const fromDisk = () => binCandidates(spec).find((c) => {
     try { fs.accessSync(c, fs.constants.X_OK); return true; } catch { return false; }
   }) || '';
   if (process.platform === 'win32') return Promise.resolve(fromDisk());
   return new Promise((resolve) => {
-    execFile(process.env.SHELL || '/bin/zsh', ['-lc', 'command -v claude'],
+    execFile(process.env.SHELL || '/bin/zsh', ['-lc', 'command -v ' + spec.bin],
       { timeout: 6000 }, (err, stdout) => {
         const hit = !err && String(stdout).trim().split('\n')[0].trim();
         resolve(hit && path.isAbsolute(hit) ? hit : fromDisk());
@@ -445,40 +468,47 @@ function resolveClaudeBin() {
 }
 
 /**
- * Open a terminal sitting at `claude`, so the CLI can run its own /login.
+ * Open a terminal running the CLI's own login command.
  *
- * The quota comes from Claude Code's standalone OAuth credential, which the
- * desktop app never touches — it carries its own session. So a user who only
- * ever opens the desktop app can have a live Claude and a dead credential at
- * the same time, and "open Claude Code" reads as advice they have already
- * followed. Handing them a terminal is the shortest honest path to it.
+ * The login command, not the interactive session: the session is a whole tool
+ * to walk past for a thing that takes one step, and it leaves the user sitting
+ * in a REPL they did not ask for.
+ *
+ * Each provider's quota comes from that CLI's own credential, which the
+ * matching GUI app does not touch — it carries its own session. So a user who
+ * only ever opens the app can have a live Claude (or ChatGPT) and a dead
+ * credential at the same time, and "open it once" reads as advice they have
+ * already followed. Handing them a terminal is the shortest honest path to it.
  *
  * Deliberately a terminal rather than an in-app OAuth flow: the login stays in
- * Claude Code's hands. It runs the binary by absolute path rather than by name,
+ * the CLI's hands. It runs the binary by absolute path rather than by name,
  * because the name is exactly what a fresh terminal turned out not to have.
  */
-async function openClaudeSignIn() {
-  const bin = await resolveClaudeBin();
+async function openSignIn(which) {
+  const spec = SIGN_IN[which];
+  const bin = await resolveBin(spec);
   if (!bin) {
     dialog.showMessageBox({
       type: 'info',
-      message: 'Claude Code is not installed on this machine',
-      detail: 'The HUD reads your usage from the Claude Code CLI\u2019s own sign-in, '
-            + 'which is separate from the Claude desktop app. Install it from '
-            + 'claude.com/claude-code, then sign in once and the bars fill in on their own.',
+      message: spec.title + ' is not installed on this machine',
+      detail: spec.why + '\n\nInstall it with: ' + spec.install
+            + '\nThen sign in once and the bars fill in on their own.',
       buttons: ['OK'],
     });
     return;
   }
   if (process.platform === 'darwin') {
-    // AppleScript string, so a path with a quote or backslash has to be escaped.
-    const asStr = bin.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    // Two layers of quoting: the path goes through a shell, and the whole
+    // command then goes through AppleScript.
+    const cmd = [`'${bin.replace(/'/g, `'\\''`)}'`, ...spec.args].join(' ');
+    const asStr = cmd.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     execFile('osascript',
       ['-e', `tell application "Terminal" to do script "${asStr}"`,
        '-e', 'tell application "Terminal" to activate'],
       (err) => { if (err) console.log('[HUD] sign-in terminal failed:', err.message); });
   } else if (process.platform === 'win32') {
-    try { spawn('cmd.exe', ['/c', 'start', '', 'cmd.exe', '/k', bin], { detached: true }).unref(); }
+    const cmd = [`"${bin}"`, ...spec.args].join(' ');
+    try { spawn('cmd.exe', ['/c', 'start', '', 'cmd.exe', '/k', cmd], { detached: true }).unref(); }
     catch (e) { console.log('[HUD] sign-in terminal failed:', e.message); }
   }
 }
@@ -540,8 +570,16 @@ function showContextMenu(fromWindow) {
       label: usageState.quotaStale || !usageState.quota
         ? 'Sign in to Claude Code (quota is stale)…'
         : 'Sign in to Claude Code…',
-      click: () => openClaudeSignIn(),
+      click: () => openSignIn('claude'),
     },
+    // Offered once Codex has ever been read, so a machine that has never had
+    // Codex is not told to sign in to something it does not use.
+    ...(usageState.codex || usageState.codexNote ? [{
+      label: usageState.codexStale
+        ? 'Sign in to Codex (quota is stale)…'
+        : 'Sign in to Codex…',
+      click: () => openSignIn('codex'),
+    }] : []),
     { type: 'separator' },
     {
       label: 'Open claude.ai Usage Page',
@@ -738,7 +776,7 @@ async function refreshCodex() {
         codexBackoff = Math.min(CODEX_BACKOFF_MAX, codexBackoff ? codexBackoff * 2 : CODEX_INTERVAL);
       }
       usageState.codexNote = (e.status === 401 || e.status === 403)
-        ? 'Open Codex once to renew its sign-in' : null;
+        ? 'Sign-in expired — right-click → Sign in to Codex' : null;
       if (usageState.codex) usageState.codexStale = true;
       console.log('[HUD] codex usage unavailable:', e.message);
     }
