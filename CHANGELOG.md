@@ -7,22 +7,37 @@ are versioned independently.
 
 # Desktop app
 
-## [Unreleased]
+## [3.8.0] - 2026-09-28
 
 ### Added
 
 - **System Monitor: what is slowing this machine down.** Off until you turn it
   on (right-click → System Monitor). A third ring on the notch names the
-  reading under the most pressure — CPU, memory, GPU, disk space or heat — and
-  who is behind it: an app, a dev server by its project folder, or a Claude
-  Code session by the project it is working in. Its card and panel list the
-  biggest users of each, memory pressure and swap, what is reading and writing
-  the disk, and on a Mac the chip, SSD and battery temperatures. Amber means
-  under pressure, red critical; nothing pops up. Click a name to open Activity
-  Monitor. On a Mac, Find what's using space measures build output and
-  dependencies across your code folders, caches, Downloads and the like — about
-  half a minute, nothing deleted. Everything stays on the machine.
+  reading under the most pressure — CPU, memory, GPU, heat, or a disk with
+  under 10% free — and who is behind it: an app, a dev server by its project
+  folder, or a Claude Code session by the project it is working in. Its card
+  and panel lead with that answer, then show a ring per reading; pick a ring
+  to list the biggest users of it — including, for heat, what is keeping the
+  chip busy. On a Mac, Find what's using space measures build output and
+  dependencies across your code folders, caches, Downloads and the like —
+  about half a minute, nothing deleted. Everything stays on the machine.
   (Windows: CPU, memory and disk only, not yet run on real Windows hardware.)
+
+### Fixed
+
+- **The connection the Chrome extension uses was open to more than the
+  extension.** The HUD listened for it on port 27843 on every network
+  interface and took any caller: another machine on the same network, or any
+  website open in your browser, could send it made-up readings, and text in
+  those readings was drawn as HTML inside the HUD's own windows. It now
+  listens on this machine only and accepts only a browser extension; what it
+  receives is reduced to plain numbers and short text before anything is
+  drawn, and both windows print that text rather than render it. A malformed
+  or oversized message could also stall the app behind an error dialog; it is
+  now just dropped.
+- Hovering the notch sometimes did nothing: with several cards its window
+  grew taller than the screen, macOS moved it, and the notch was drawn lower
+  than where the hover was being looked for.
 
 ## [3.7.0] - 2026-09-28
 
