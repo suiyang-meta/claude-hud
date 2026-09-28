@@ -6,18 +6,21 @@
   <style>
     /* The machine's own panel: black ground with cool teal glows, so it never
        reads as a third provider. Colour is spent on one thing only — how bad a
-       reading is: teal (fine), amber (under pressure), red (critical). */
+       reading is: teal (fine), amber (under pressure), red (critical).
+
+       Read top-down, one answer at a time: the verdict in large type; four
+       rings for a glance at every reading; then ONE list — who is behind the
+       reading picked in the rings (the verdict's, until you pick another). */
     :root {
       --c1: #8ce6cc;
       --c2: #3fc4a6;
-      --grad: linear-gradient(90deg, var(--c1), var(--c2));
       --warn: #f2b54a;
       --crit: #ff5f57;
       --text: #ecf5f2;
       --mid:  rgba(228,242,237,0.56);
-      --low:  rgba(228,242,237,0.30);
+      --low:  rgba(228,242,237,0.32);
       --hair: rgba(140,230,204,0.10);
-      --track:rgba(140,230,204,0.10);
+      --track:rgba(140,230,204,0.13);
     }
     * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; }
     html, body { width:100%; height:100%; overflow:hidden; background:transparent;
@@ -42,7 +45,7 @@
     }
     #scroll { position:relative; z-index:1; height:100%; overflow-y:auto; }
     #scroll::-webkit-scrollbar { width:0; }
-    #inner { padding:13px 15px 12px; }
+    #inner { padding:14px 16px 12px; }
 
     .ctl { position:absolute; top:12px; right:13px; z-index:3; display:flex; gap:9px;
            align-items:center; -webkit-app-region:no-drag; }
@@ -53,59 +56,65 @@
     .ic.spin { opacity:.6; animation:spin .8s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
 
-    .hdr { display:flex; align-items:center; gap:7px; margin-bottom:10px; padding-right:44px; }
-    .hdr svg { width:15px; height:15px; flex:none; }
+    .hdr { display:flex; align-items:center; gap:7px; margin-bottom:14px; padding-right:44px; }
+    .hdr svg { width:14px; height:14px; flex:none; }
     .name { font-size:12px; font-weight:600; color:var(--text); letter-spacing:-.1px; }
 
-    /* The verdict: the reason this panel exists. */
-    .verdict { display:flex; gap:7px; align-items:flex-start; font-size:11px; font-weight:600;
-               line-height:1.35; color:var(--text); margin-bottom:14px; }
-    .verdict i { width:7px; height:7px; border-radius:50%; flex:none; margin-top:4px; background:var(--c2); }
-    .verdict.warn i { background:var(--warn); } .verdict.critical i { background:var(--crit); }
-    .verdict.warn { color:var(--warn); } .verdict.critical { color:var(--crit); }
+    .warn { color:var(--warn); } .critical { color:var(--crit); }
 
-    .sec { margin-bottom:13px; }
-    .row-top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; }
-    .lbl { font-size:10px; color:var(--mid); }
-    .val { font-size:16px; font-weight:600; color:var(--text); letter-spacing:-.4px; }
-    .val small { font-size:9px; font-weight:500; color:var(--mid); letter-spacing:0; margin-left:4px; }
-    .val.warn { color:var(--warn); } .val.critical { color:var(--crit); }
-    .trk { height:4px; background:var(--track); border-radius:2px; overflow:hidden; }
-    .fill { height:100%; border-radius:2px; background:var(--grad);
-            transition: width .7s cubic-bezier(.4,0,.2,1); }
-    .fill.warn { background:var(--warn); } .fill.critical { background:var(--crit); }
-    .sub { font-size:8.5px; color:var(--low); margin-top:4px; }
-    .sub b { font-weight:500; color:var(--warn); }
+    /* The answer */
+    .kick { font-size:9.5px; font-weight:700; letter-spacing:.7px; text-transform:uppercase; color:var(--c1); }
+    .kick.warn { color:var(--warn); } .kick.critical { color:var(--crit); }
+    .main { font-size:26px; font-weight:650; letter-spacing:-.7px; line-height:1.12; margin-top:2px;
+            color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .hsub { font-size:10px; color:var(--mid); margin-top:4px; }
 
-    /* Who is behind a reading. Each row opens Activity Monitor. */
-    .who { margin-top:6px; -webkit-app-region:no-drag; }
-    .w { display:flex; justify-content:space-between; gap:8px; align-items:baseline;
-         padding:3px 5px; margin:0 -5px; border-radius:5px; cursor:pointer; }
-    .w:hover { background:rgba(140,230,204,0.07); }
-    .wn { font-size:10px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .wn em { font-style:normal; color:var(--low); font-size:8.5px; margin-left:5px; }
-    .wv { font-size:9.5px; color:var(--mid); flex:none; }
-    .none { font-size:9px; color:var(--low); padding:3px 0; }
+    /* Every reading at a glance; the picked one drives the list below. */
+    .tiles { display:grid; gap:1px; background:var(--hair); border-radius:4px; overflow:hidden;
+             margin:16px 0 14px; -webkit-app-region:no-drag; }
+    .tile { background:rgb(9,13,13); display:flex; flex-direction:column; align-items:center;
+            padding:10px 0 9px; cursor:pointer; }
+    .tile:hover { background:rgb(13,20,19); }
+    .tile.sel { background:rgb(18,30,28); box-shadow: inset 0 -1.5px 0 var(--c1); }
+    .ring { position:relative; width:46px; height:46px; }
+    .ring svg { position:absolute; inset:0; transform:rotate(-90deg); }
+    .ring .trk { stroke:var(--track); }
+    .ring .arc { stroke:var(--c2); } .ring .arc.warn { stroke:var(--warn); } .ring .arc.critical { stroke:var(--crit); }
+    .ring b { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+              font-size:11.5px; font-weight:650; letter-spacing:-.3px; color:var(--text); }
+    .ring b.warn { color:var(--warn); } .ring b.critical { color:var(--crit); }
+    .tl { font-size:8.5px; font-weight:600; letter-spacing:.5px; color:var(--mid); margin-top:6px; }
+    .tile.sel .tl { color:var(--text); }
 
-    .heat { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:9.5px; color:var(--mid); }
-    .heat b { font-weight:600; color:var(--text); }
-    .heat .warn { color:var(--warn); } .heat .critical { color:var(--crit); }
+    /* The one list */
+    .lh { display:flex; justify-content:space-between; align-items:baseline; gap:8px;
+          font-size:10px; color:var(--mid); margin-bottom:3px; }
+    .lh .aux { color:var(--low); font-size:9px; text-align:right; }
+    .lh .aux b { font-weight:500; color:var(--warn); }
+    .lh a, .note a { color:var(--mid); cursor:pointer; text-decoration:underline;
+                     text-decoration-color:rgba(228,242,237,.25); -webkit-app-region:no-drag; }
+    .list { -webkit-app-region:no-drag; }
+    .li { display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+          font-size:11.5px; color:var(--text); padding:6px 5px; margin:0 -5px;
+          border-top:1px solid var(--hair); cursor:pointer; }
+    .li:first-child { border-top-color:transparent; }
+    .li:hover { background:rgba(140,230,204,0.07); border-top-color:transparent; }
+    .li:hover + .li { border-top-color:transparent; }
+    .li span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .li .v { font-size:11px; color:var(--mid); flex:none; }
+    .none { font-size:10px; color:var(--low); padding:6px 0; }
 
-    .scan { margin-top:8px; -webkit-app-region:no-drag; }
-    .btn { display:inline-block; font-size:9.5px; font-weight:600; color:var(--c1); cursor:pointer;
-           border:1px solid rgba(140,230,204,.28); border-radius:6px; padding:4px 8px; }
+    .scan { padding:4px 0 2px; -webkit-app-region:no-drag; }
+    .btn { display:inline-block; font-size:10px; font-weight:600; color:var(--c1); cursor:pointer;
+           border:1px solid rgba(140,230,204,.28); border-radius:6px; padding:5px 9px; }
     .btn:hover { background:rgba(140,230,204,0.08); }
-    .note { font-size:8.5px; color:var(--low); line-height:1.5; margin-top:6px; }
-    .note a { color:var(--mid); cursor:pointer; text-decoration:underline; text-decoration-color:rgba(228,242,237,.25); }
-    .busy { font-size:9.5px; color:var(--mid); display:flex; align-items:center; gap:6px; }
+    .note { font-size:9px; color:var(--low); line-height:1.5; margin-top:7px; }
+    .busy { font-size:10px; color:var(--mid); display:flex; align-items:center; gap:6px; padding:6px 0; }
     .busy i { width:8px; height:8px; border-radius:50%; border:1.5px solid var(--c2);
               border-right-color:transparent; animation:spin .8s linear infinite; }
 
-    .hair { height:1px; background:var(--hair); margin:4px 0 9px; }
-    .foot { display:flex; justify-content:space-between; font-size:8.5px; color:var(--low); }
-    .foot .live { display:flex; align-items:center; gap:5px; }
-    .dot { width:5px; height:5px; border-radius:50%; background:var(--c2); }
-    .dot.off { background:var(--low); }
+    .foot { display:flex; justify-content:space-between; font-size:9px; color:var(--low);
+            border-top:1px solid var(--hair); margin-top:12px; padding-top:9px; }
     .foot a { color:var(--low); cursor:pointer; text-decoration:none; -webkit-app-region:no-drag; }
     .foot a:hover { color:var(--c1); }
     .empty { font-size:10px; color:var(--mid); line-height:1.6; padding:6px 0 12px; }
@@ -131,6 +140,7 @@
     const GLYPH = `<svg viewBox="0 0 24 24" fill="none" stroke="#8ce6cc" stroke-width="2.4"
       stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-6 5 12 2.5-6h4"/></svg>`;
     let st = { sys: null, scan: { running: false }, platform: '' };
+    let picked = null;       // a ring the user picked; until then, the verdict's
 
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g,
       (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -138,46 +148,71 @@
     const mem = (b) => (b >= GiB ? (b / GiB).toFixed(1) + ' GB' : Math.round(b / 1024 ** 2) + ' MB');
     const disk = (b) => (b >= 1e12 ? (b / 1e12).toFixed(2) + ' TB' : b >= 10e9 ? Math.round(b / 1e9) + ' GB'
                          : b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : Math.round(b / 1e6) + ' MB');
-    const pct = (p) => (p >= 10 ? Math.round(p) : p.toFixed(1)) + '%';
+    const pct = (p) => Math.round(p) + '%';
+    const sevClass = (s) => (s === 'normal' ? '' : s);
 
-    function who(list, empty) {
-      if (!list || !list.length) return `<div class="who"><div class="none">${empty}</div></div>`;
-      return `<div class="who">${list.map((t) => `<div class="w act" title="${esc(t.detail || t.name)} — open Activity Monitor">
-        <span class="wn">${esc(t.name)}${t.detail ? `<em>${esc(t.detail)}</em>` : ''}</span>
-        <span class="wv num">${esc(t.text)}</span></div>`).join('')}</div>`;
-    }
-    function bar(p, sev) {
-      return `<div class="trk"><div class="fill ${sev}" style="width:${Math.max(0, Math.min(100, p))}%"></div></div>`;
-    }
-    function section(label, r, extra, empty) {
-      return `<div class="sec">
-        <div class="row-top"><span class="lbl">${label}</span>
-          <span class="val num ${r.severity}">${pct(r.pct)}</span></div>
-        ${bar(r.pct, r.severity)}
-        ${extra ? `<div class="sub">${extra}</div>` : ''}
-        ${who(r.top, empty)}
-      </div>`;
+    const C = 2 * Math.PI * 15.5;
+    function ring(p, sev) {
+      const off = C * (1 - Math.max(0, Math.min(100, p)) / 100);
+      return `<div class="ring"><svg viewBox="0 0 36 36">
+        <circle class="trk" cx="18" cy="18" r="15.5" fill="none" stroke-width="3"/>
+        <circle class="arc ${sevClass(sev)}" cx="18" cy="18" r="15.5" fill="none" stroke-width="3"
+          stroke-linecap="round" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/></svg>
+        <b class="num ${sevClass(sev)}">${pct(p)}</b></div>`;
     }
 
-    function scanBlock() {
-      const sc = st.scan || {};
-      if (sc.running) return `<div class="scan"><div class="busy"><i></i>${esc(sc.progress || 'Scanning…')}</div></div>`;
-      const r = sc.result;
-      if (!r) {
-        return `<div class="scan"><span class="btn" id="scanBtn">Find what’s using space</span>
-          <div class="note">Measures code folders (node_modules, .next, dist…), caches, Downloads and
-          the like — about half a minute. macOS may ask once to allow Documents and Downloads.
-          Nothing is deleted.</div></div>`;
+    function tiles(s) {
+      const t = [['cpu', 'CPU', s.cpu.pct, s.cpu.severity], ['mem', 'MEMORY', s.mem.pct, s.mem.severity]];
+      if (s.gpu) t.push(['gpu', 'GPU', s.gpu.pct, s.gpu.severity]);
+      if (s.disk) t.push(['disk', 'DISK', s.disk.usedPct, s.disk.severity]);
+      return t;
+    }
+
+    function rows(list, kind) {
+      return `<div class="list">${list.map((t) => kind === 'dir'
+        ? `<div class="li dir" data-path="${esc(t.path)}" title="${esc(t.path)} — show in Finder">
+             <span>${esc(t.label)}</span><span class="v num">${disk(t.bytes)}</span></div>`
+        : `<div class="li act" title="${esc(t.detail ? t.name + ' — ' + t.detail : t.name)} — open Activity Monitor">
+             <span>${esc(t.name)}</span><span class="v num">${esc(t.text)}</span></div>`).join('')}</div>`;
+    }
+
+    function listFor(res, s) {
+      if (res === 'disk') {
+        const sc = st.scan || {}, r = sc.result;
+        const busy = s.io && s.io.top.length
+          ? `<div class="note">Busy right now: ${s.io.top.map((t) => `${esc(t.name)} ${esc(t.text)}`).join(' · ')}</div>` : '';
+        if (st.platform !== 'darwin') return `<div class="lh"><span>Disk</span></div>
+          <div class="none">${disk(s.disk.free)} free of ${disk(s.disk.total)}</div>`;
+        if (sc.running) {
+          return `<div class="lh"><span>What’s taking the space</span></div>
+            <div class="busy"><i></i>${esc(sc.progress || 'Scanning…')}</div>${busy}`;
+        }
+        if (!r) {
+          return `<div class="lh"><span>What’s taking the space</span></div>
+            <div class="scan"><span class="btn" id="scanBtn">Find what’s using space</span>
+            <div class="note">About half a minute. Measures code folders, caches, Downloads and the
+            like — nothing is deleted.</div></div>${busy}`;
+        }
+        const at = new Date(r.at).toTimeString().slice(0, 5);
+        return `<div class="lh"><span>What’s taking the space</span>
+            <span class="aux">scanned ${at} · <a id="scanBtn">again</a></span></div>
+          ${r.items.length ? rows(r.items.slice(0, 6), 'dir') : '<div class="none">Nothing over 100 MB in the usual places.</div>'}
+          <div class="note">These add up to ${disk(r.measured)}${r.used ? ` of the ${disk(r.used)} in use` : ''}.
+          ${r.unreadable.length ? `Couldn’t read: ${esc(r.unreadable.join(', '))}.` : ''}</div>${busy}`;
       }
-      const rows = r.items.map((i) => `<div class="w dir" data-path="${esc(i.path)}" title="${esc(i.path)} — show in Finder">
-        <span class="wn">${esc(i.label)}<em>${esc(i.detail)}</em></span>
-        <span class="wv num">${disk(i.bytes)}</span></div>`).join('');
-      const at = new Date(r.at).toTimeString().slice(0, 5);
-      return `<div class="scan"><div class="who">${rows || '<div class="none">Nothing over 100 MB in the usual places.</div>'}</div>
-        <div class="note">These account for ${disk(r.measured)}${r.used ? ` of the ${disk(r.used)} in use` : ''};
-        the rest is apps, the system, photos, mail and other folders.
-        ${r.unreadable.length ? `<br>Could not read: ${esc(r.unreadable.join(', '))} (needs Full Disk Access).` : ''}
-        <br>Scanned ${at} · <a id="scanBtn">scan again</a></div></div>`;
+      const r = s[res];
+      const title = { cpu: 'Who’s using the CPU', mem: 'Who’s using the memory', gpu: 'Who’s using the GPU' }[res];
+      let aux = '';
+      if (res === 'cpu') aux = `${s.cores} cores`;
+      if (res === 'mem') {
+        const swap = s.mem.swapUsed;
+        aux = [s.mem.pressure !== 'normal'
+                 ? `<b>pressure ${s.mem.pressure === 'critical' ? 'critical' : 'high'}</b>` : null,
+               swap != null && swap > 0.5 * GiB ? (swap > 2 * GiB ? `<b>swap ${mem(swap)}</b>` : `swap ${mem(swap)}`) : null]
+          .filter(Boolean).join(' · ');
+      }
+      return `<div class="lh"><span>${title}</span><span class="aux">${aux}</span></div>
+        ${r.top.length ? rows(r.top, 'proc') : `<div class="none">Nothing busy</div>`}`;
     }
 
     function render() {
@@ -189,55 +224,40 @@
         html += `<div class="empty">Reading this machine…</div>`;
       } else {
         const v = s.verdict;
-        html += `<div class="verdict ${v.severity}"><i></i><span>${esc(v.text)}</span></div>`;
-        html += section('CPU', s.cpu, `${s.cores} cores`, 'Nothing busy');
-        const swap = s.mem.swapUsed;
-        const memExtra = [s.mem.pressure !== 'normal'
-            ? `<b>pressure ${s.mem.pressure === 'critical' ? 'critical' : 'high'}</b>` : 'pressure normal',
-          swap != null ? (swap > 2 * GiB ? `<b>swap ${mem(swap)}</b>` : `swap ${mem(swap)}`) : null,
-          `${mem(s.mem.total)} total`].filter(Boolean).join(' · ');
-        html += section('Memory', s.mem, memExtra, '—');
-        if (s.gpu) html += section('GPU', s.gpu, null, 'GPU idle');
-        if (s.disk) {
-          const d = s.disk;
-          html += `<div class="sec">
-            <div class="row-top"><span class="lbl">Disk</span>
-              <span class="val num ${d.severity}">${pct(d.usedPct)}<small>${disk(d.free)} free</small></span></div>
-            ${bar(d.usedPct, d.severity)}
-            <div class="sub">${disk(d.total)} total</div>
-            ${mac ? scanBlock() : ''}</div>`;
-        }
-        if (s.io && s.io.top.length) {
-          html += `<div class="sec"><div class="row-top"><span class="lbl">Reading and writing the disk</span></div>
-            ${who(s.io.top, '')}</div>`;
-        }
-        if (s.heat) {
-          const h = s.heat, t = (x) => (x == null ? null : Math.round(x) + '°C');
-          const state = { nominal: 'normal', fair: 'warm', serious: 'hot — slowing down',
-                          critical: 'very hot — slowing down', unknown: 'unknown' }[h.state] || h.state;
-          html += `<div class="sec"><div class="row-top"><span class="lbl">Heat</span></div>
-            <div class="heat">${t(h.chip) ? `<span>chip <b>${t(h.chip)}</b></span>` : ''}
-              ${t(h.ssd) ? `<span>SSD <b>${t(h.ssd)}</b></span>` : ''}
-              ${t(h.battery) ? `<span>battery <b>${t(h.battery)}</b></span>` : ''}
-              <span class="${h.severity}">${esc(state)}</span></div></div>`;
-        }
+        const t = tiles(s);
+        const own = v.resource === 'heat' ? 'cpu' : v.resource;
+        const sel = t.some((x) => x[0] === picked) ? picked : own;
+        html += `<div class="kick ${sevClass(v.severity)}">${esc(v.kicker)}</div>
+          <div class="main">${esc(v.main)}</div>
+          ${v.sub ? `<div class="hsub">${esc(v.sub)}</div>` : ''}
+          <div class="tiles" style="grid-template-columns:repeat(${t.length},1fr)">
+            ${t.map(([id, label, p, sev]) => `<div class="tile ${id === sel ? 'sel' : ''}" data-res="${id}">
+              ${ring(p, sev)}<div class="tl">${label}</div></div>`).join('')}
+          </div>
+          ${listFor(sel, s)}`;
       }
-      const asOf = s ? new Date(s.at).toTimeString().slice(0, 8) : null;
-      html += `<div class="hair"></div><div class="foot">
-        <span class="live"><span class="dot ${s ? '' : 'off'}"></span>${asOf ? 'updated ' + asOf : 'waiting'}</span>
+      const h = s && s.heat;
+      const heatWord = h && ({ nominal: 'normal', fair: 'warm', serious: 'hot — slowing down',
+                               critical: 'very hot — slowing down' }[h.state] || h.state);
+      html += `<div class="foot">
+        <span class="${h ? sevClass(h.severity) : ''}">${h && h.chip ? `chip ${Math.round(h.chip)}°C · ${esc(heatWord)}` : ''}</span>
         <a id="lnk">${mac ? 'Activity Monitor' : 'Task Manager'} ↗</a></div>`;
       inner.innerHTML = html;
       window.sysAPI.fitHeight(Math.ceil(inner.offsetHeight));
     }
 
-    // One listener for the whole panel: the rows are redrawn every tick.
+    // One listener for the whole panel: everything is redrawn every tick.
     document.getElementById('inner').addEventListener('click', (e) => {
       const t = e.target;
+      const tile = t.closest('.tile');
+      if (tile) { picked = tile.dataset.res; return render(); }
       if (t.closest('#scanBtn')) return window.sysAPI.scanDisk();
-      if (t.closest('#lnk') || t.closest('.w.act')) return window.sysAPI.openActivityMonitor();
-      const d = t.closest('.w.dir');
+      if (t.closest('#lnk') || t.closest('.li.act')) return window.sysAPI.openActivityMonitor();
+      const d = t.closest('.li.dir');
       if (d) window.sysAPI.reveal(d.dataset.path);
     });
+    // Each time the panel is opened again it starts from the verdict.
+    document.addEventListener('visibilitychange', () => { if (document.hidden) picked = null; });
     const btnRefresh = document.getElementById('btnRefresh');
     btnRefresh.addEventListener('click', () => {
       btnRefresh.classList.add('spin');

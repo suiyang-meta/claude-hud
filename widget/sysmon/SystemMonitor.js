@@ -327,7 +327,7 @@ class SystemMonitor {
     for (const k of this.ema.keys()) if (!seen.has(k)) this.ema.delete(k);
 
     const list = [...groups.values()];
-    const top = (field, fmt, min, n = 3) => list.filter((g) => g[field] > min)
+    const top = (field, fmt, min, n = 5) => list.filter((g) => g[field] > min)
       .sort((a, b) => b[field] - a[field]).slice(0, n)
       .map((g) => ({ key: g.key, name: g.name, short: g.short, detail: g.detail,
                      value: g[field], text: fmt(g[field]), pids: g.pids.slice(0, 8) }));
@@ -337,7 +337,7 @@ class SystemMonitor {
     mem.top = top('mem', fmtMem, 50 * 1024 ** 2);
     const gpu = gpuUtil == null ? null
       : { pct: gpuUtil, severity: byPct(gpuUtil, 70, 90), top: top('gpu', fmtPct, 0.5) };
-    const io = IS_MAC ? { top: top('io', fmtRate, 200 * 1024) } : null;
+    const io = IS_MAC ? { top: top('io', fmtRate, 200 * 1024, 3) } : null;
     let heat = null;
     const ts = this.thermalState();
     if (IS_MAC) {
@@ -507,36 +507,43 @@ function verdict(s, groups) {
   if (s.disk && s.disk.severity === 'critical') cand.push({ res: 'disk', sev: 'critical', load: 0 });
   cand.sort((a, b) => RANK[b.sev] - RANK[a.sev] || b.load - a.load);
   const w = cand[0];
-  const v = { resource: w.res, severity: w.sev, culprit: null, text: '' };
+  // The answer in three lines, written once here and shown by both the panel
+  // and the notch card: a kicker (what is wrong), the main line (who, or how
+  // much), and a sub line (the numbers behind it).
+  const v = { resource: w.res, severity: w.sev, culprit: null };
   const first = (r) => (s[r] && s[r].top && s[r].top[0]) || null;
+  const noun = { cpu: 'CPU', mem: 'memory', gpu: 'GPU' };
   if (w.res === 'disk') {
     v.value = s.disk.usedPct;
     v.ring = fmtDisk(s.disk.free);
-    v.text = w.sev === 'normal' ? 'All clear' : `Disk almost full — ${fmtDisk(s.disk.free)} left`;
-    return v;
-  }
-  if (w.res === 'heat') {
+    v.kicker = 'Disk almost full';
+    v.main = `${fmtDisk(s.disk.free)} left`;
+    v.sub = `${Math.round(s.disk.usedPct)}% of ${fmtDisk(s.disk.total)} used`;
+  } else if (w.res === 'heat') {
     // Heat has no owner of its own: blame whoever is burning the most CPU+GPU.
     const hot = groups.slice().sort((a, b) => (b.cpu + b.gpu) - (a.cpu + a.gpu))[0];
+    const chip = s.heat.chip ? `chip ${Math.round(s.heat.chip)}°C` : null;
     v.value = s.heat.chip || 100;
     v.culprit = hot ? { name: hot.name, short: hot.short } : null;
     v.ring = hot ? hot.short : (s.heat.chip ? Math.round(s.heat.chip) + '°' : 'hot');
-    v.text = `Running hot and slowing down${hot ? ` — mostly ${hot.name}` : ''}`;
-    return v;
-  }
-  const r = s[w.res], c = first(w.res);
-  const noun = { cpu: 'CPU', mem: 'Memory', gpu: 'GPU' }[w.res];
-  v.value = r.pct;
-  v.culprit = c ? { name: c.name, short: c.short, text: c.text } : null;
-  v.ring = c ? c.short : fmtPct(r.pct);
-  if (w.sev === 'normal') {
-    v.text = c ? `All clear · busiest: ${c.name} (${noun.toLowerCase()} ${c.text})` : 'All clear';
+    v.kicker = w.sev === 'critical' ? 'Too hot — slowing down' : 'Running warm';
+    v.main = hot ? hot.name : (chip || 'Running hot');
+    v.sub = hot ? [`likely cause · CPU ${fmtPct(hot.cpu)}`, hot.gpu >= 1 ? `GPU ${fmtPct(hot.gpu)}` : null, chip]
+      .filter(Boolean).join(' · ') : '';
   } else {
-    const what = { cpu: w.sev === 'critical' ? 'CPU is maxed out' : 'CPU is busy',
-                   mem: w.sev === 'critical' ? 'Memory is critically low' : 'Memory is under pressure',
-                   gpu: w.sev === 'critical' ? 'GPU is maxed out' : 'GPU is busy' }[w.res];
-    v.text = c ? `${what} — ${c.name} uses ${c.text}` : what;
+    const r = s[w.res], c = first(w.res);
+    v.value = r.pct;
+    v.culprit = c ? { name: c.name, short: c.short, text: c.text } : null;
+    v.ring = c ? c.short : fmtPct(r.pct);
+    const kick = { cpu: ['CPU busy', 'CPU maxed out'], mem: ['Memory under pressure', 'Memory critically low'],
+                   gpu: ['GPU busy', 'GPU maxed out'] }[w.res];
+    v.kicker = w.sev === 'normal' ? 'All clear' : kick[w.sev === 'critical' ? 1 : 0];
+    v.main = c ? c.name : fmtPct(r.pct);
+    v.sub = !c ? `${noun[w.res]} ${fmtPct(r.pct)}`
+      : w.sev === 'normal' ? `using the most ${noun[w.res]} · ${c.text}`
+      : `uses ${c.text} · ${noun[w.res]} at ${fmtPct(r.pct)}`;
   }
+  v.text = `${v.kicker} — ${v.main}`;
   return v;
 }
 
