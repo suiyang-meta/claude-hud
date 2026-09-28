@@ -8,8 +8,8 @@
        reads as a third provider. Colour is spent on one thing only — how bad a
        reading is: teal (fine), amber (under pressure), red (critical).
 
-       Read top-down, one answer at a time: the verdict in large type; four
-       rings for a glance at every reading; then ONE list — who is behind the
+       Read top-down, one answer at a time: the verdict in large type; a ring
+       per reading for a glance at all of them; then ONE list — who is behind the
        reading picked in the rings (the verdict's, until you pick another). */
     :root {
       --c1: #8ce6cc;
@@ -83,6 +83,8 @@
     .ring b { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
               font-size:11.5px; font-weight:650; letter-spacing:-.3px; color:var(--text); }
     .ring b.warn { color:var(--warn); } .ring b.critical { color:var(--crit); }
+    .tiles.n5 .ring { width:42px; height:42px; }
+    .tiles.n5 .ring b { font-size:10.5px; }
     .tl { font-size:8.5px; font-weight:600; letter-spacing:.5px; color:var(--mid); margin-top:6px; }
     .tile.sel .tl { color:var(--text); }
 
@@ -152,19 +154,22 @@
     const sevClass = (s) => (s === 'normal' ? '' : s);
 
     const C = 2 * Math.PI * 15.5;
-    function ring(p, sev) {
+    function ring(p, sev, text) {
       const off = C * (1 - Math.max(0, Math.min(100, p)) / 100);
       return `<div class="ring"><svg viewBox="0 0 36 36">
         <circle class="trk" cx="18" cy="18" r="15.5" fill="none" stroke-width="3"/>
         <circle class="arc ${sevClass(sev)}" cx="18" cy="18" r="15.5" fill="none" stroke-width="3"
           stroke-linecap="round" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/></svg>
-        <b class="num ${sevClass(sev)}">${pct(p)}</b></div>`;
+        <b class="num ${sevClass(sev)}">${text != null ? text : pct(p)}</b></div>`;
     }
 
     function tiles(s) {
       const t = [['cpu', 'CPU', s.cpu.pct, s.cpu.severity], ['mem', 'MEMORY', s.mem.pct, s.mem.severity]];
       if (s.gpu) t.push(['gpu', 'GPU', s.gpu.pct, s.gpu.severity]);
       if (s.disk) t.push(['disk', 'DISK', s.disk.usedPct, s.disk.severity]);
+      // Heat's ring fills toward 100°C; its colour is macOS's own thermal state.
+      if (s.heat) t.push(['heat', 'HEAT', Math.min(100, s.heat.chip || 0), s.heat.severity,
+                          s.heat.chip != null ? Math.round(s.heat.chip) + '°' : '–']);
       return t;
     }
 
@@ -201,8 +206,17 @@
           ${r.unreadable.length ? `Couldn’t read: ${esc(r.unreadable.join(', '))}.` : ''}</div>${busy}`;
       }
       const r = s[res];
-      const title = { cpu: 'Who’s using the CPU', mem: 'Who’s using the memory', gpu: 'Who’s using the GPU' }[res];
+      const title = { cpu: 'Who’s using the CPU', mem: 'Who’s using the memory', gpu: 'Who’s using the GPU',
+                      heat: 'What’s heating it' }[res];
       let aux = '';
+      if (res === 'heat') {
+        const word = { nominal: 'normal', fair: 'warm', serious: 'hot — slowing down',
+                       critical: 'very hot — slowing down' }[r.state] || r.state;
+        const deg = (x) => (x == null ? null : Math.round(x) + '°C');
+        aux = [r.severity !== 'normal' ? `<b>${esc(word)}</b>` : esc(word),
+               deg(r.ssd) && `SSD ${deg(r.ssd)}`, deg(r.battery) && `battery ${deg(r.battery)}`]
+          .filter(Boolean).join(' · ');
+      }
       if (res === 'cpu') aux = `${s.cores} cores`;
       if (res === 'mem') {
         const swap = s.mem.swapUsed;
@@ -225,22 +239,18 @@
       } else {
         const v = s.verdict;
         const t = tiles(s);
-        const own = v.resource === 'heat' ? 'cpu' : v.resource;
-        const sel = t.some((x) => x[0] === picked) ? picked : own;
+        const has = (id) => t.some((x) => x[0] === id);
+        const sel = has(picked) ? picked : has(v.resource) ? v.resource : 'cpu';
         html += `<div class="kick ${sevClass(v.severity)}">${esc(v.kicker)}</div>
           <div class="main">${esc(v.main)}</div>
           ${v.sub ? `<div class="hsub">${esc(v.sub)}</div>` : ''}
-          <div class="tiles" style="grid-template-columns:repeat(${t.length},1fr)">
-            ${t.map(([id, label, p, sev]) => `<div class="tile ${id === sel ? 'sel' : ''}" data-res="${id}">
-              ${ring(p, sev)}<div class="tl">${label}</div></div>`).join('')}
+          <div class="tiles ${t.length > 4 ? 'n5' : ''}" style="grid-template-columns:repeat(${t.length},1fr)">
+            ${t.map(([id, label, p, sev, text]) => `<div class="tile ${id === sel ? 'sel' : ''}" data-res="${id}">
+              ${ring(p, sev, text)}<div class="tl">${label}</div></div>`).join('')}
           </div>
           ${listFor(sel, s)}`;
       }
-      const h = s && s.heat;
-      const heatWord = h && ({ nominal: 'normal', fair: 'warm', serious: 'hot — slowing down',
-                               critical: 'very hot — slowing down' }[h.state] || h.state);
-      html += `<div class="foot">
-        <span class="${h ? sevClass(h.severity) : ''}">${h && h.chip ? `chip ${Math.round(h.chip)}°C · ${esc(heatWord)}` : ''}</span>
+      html += `<div class="foot"><span></span>
         <a id="lnk">${mac ? 'Activity Monitor' : 'Task Manager'} ↗</a></div>`;
       inner.innerHTML = html;
       window.sysAPI.fitHeight(Math.ceil(inner.offsetHeight));

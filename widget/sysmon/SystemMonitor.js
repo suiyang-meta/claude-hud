@@ -342,8 +342,17 @@ class SystemMonitor {
     const ts = this.thermalState();
     if (IS_MAC) {
       const t = raw.temp || {};
+      // Colour follows macOS's own thermal state, not the number: a chip at
+      // 70°C that is not being slowed down is fine.
       heat = { chip: t.chip, ssd: t.ssd, battery: t.battery, state: ts,
                severity: ts === 'serious' || ts === 'critical' ? 'critical' : ts === 'fair' ? 'warn' : 'normal' };
+      // Heat has no owner of its own: what heats the chip is whatever keeps
+      // its CPU and GPU busy.
+      heat.top = list.filter((g) => g.cpu + g.gpu > 0.5)
+        .sort((a, b) => (b.cpu + b.gpu) - (a.cpu + a.gpu)).slice(0, 5)
+        .map((g) => ({ key: g.key, name: g.name, short: g.short, detail: g.detail, value: g.cpu + g.gpu,
+                       text: [`CPU ${fmtPct(g.cpu)}`, g.gpu >= 1 ? `GPU ${fmtPct(g.gpu)}` : null].filter(Boolean).join(' · '),
+                       pids: g.pids.slice(0, 8) }));
     }
 
     const s = { at: now, platform: process.platform, cpu, mem, gpu, disk, heat, io,

@@ -555,21 +555,28 @@ async function runDiskScan() {
 
 /** The machine's ring and hover card, in the notch's provider shape. The card
  *  is the panel in brief: the same three-line verdict (written once, in
- *  SystemMonitor), a small ring per reading, and the top three behind it. */
+ *  SystemMonitor), a small ring per reading, and the top three behind the
+ *  ring that is picked — every reading's list is sent, so picking another
+ *  ring on the card switches the list without a round trip. */
 function systemProvider(s) {
   const v = s.verdict;
-  const tile = (label, pct, sev) => ({ label, pct, sev, color: SEV_COLOR[sev] });
-  const tiles = [tile('CPU', s.cpu.pct, s.cpu.severity), tile('MEMORY', s.mem.pct, s.mem.severity),
-                 s.gpu && tile('GPU', s.gpu.pct, s.gpu.severity),
-                 s.disk && tile('DISK', s.disk.usedPct, s.disk.severity)].filter(Boolean);
-  let list = [], hint = null;
-  if (v.resource === 'disk') {
-    const r = diskScan.result;
-    if (r) list = r.items.slice(0, 3).map((i) => ({ name: i.label, text: fmtDisk(i.bytes) }));
-    else hint = 'Open the panel to see what’s using it';
-  } else {
-    const res = v.resource === 'heat' ? 'cpu' : v.resource;
-    list = ((s[res] && s[res].top) || []).slice(0, 3).map((t) => ({ name: t.name, text: t.text }));
+  const tile = (res, label, pct, sev, text) => ({ res, label, pct, sev, color: SEV_COLOR[sev],
+                                                  text: text || `${Math.round(pct)}%` });
+  const tiles = [tile('cpu', 'CPU', s.cpu.pct, s.cpu.severity), tile('mem', 'MEMORY', s.mem.pct, s.mem.severity),
+                 s.gpu && tile('gpu', 'GPU', s.gpu.pct, s.gpu.severity),
+                 s.disk && tile('disk', 'DISK', s.disk.usedPct, s.disk.severity),
+                 s.heat && tile('heat', 'HEAT', Math.min(100, s.heat.chip || 0), s.heat.severity,
+                                s.heat.chip != null ? `${Math.round(s.heat.chip)}°` : '–')].filter(Boolean);
+  const three = (top) => (top || []).slice(0, 3).map((t) => ({ name: t.name, text: t.text }));
+  const lists = {}, hints = {};
+  for (const t of tiles) {
+    if (t.res === 'disk') {
+      const r = diskScan.result;
+      if (r) lists.disk = r.items.slice(0, 3).map((i) => ({ name: i.label, text: fmtDisk(i.bytes) }));
+      else hints.disk = 'Open the panel to see what’s using it';
+    } else {
+      lists[t.res] = three(s[t.res].top);
+    }
   }
   return {
     id: 'system', label: IS_MAC ? 'This Mac' : 'This PC',
@@ -577,7 +584,9 @@ function systemProvider(s) {
     ringText: v.ring,
     tag: { cpu: 'CPU', mem: 'MEM', gpu: 'GPU', disk: 'DISK', heat: 'HEAT' }[v.resource],
     color: SEV_COLOR[v.severity], severity: v.severity,
-    kicker: v.kicker, main: v.main, sub: v.sub, tiles, list, hint,
+    kicker: v.kicker, main: v.main, sub: v.sub,
+    tiles, lists, hints,
+    sel: tiles.some((t) => t.res === v.resource) ? v.resource : 'cpu',
     stale: false, rows: [],
   };
 }

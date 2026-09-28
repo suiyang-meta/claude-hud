@@ -164,12 +164,22 @@
     .s-sub { font-size:9px; color:var(--mid); margin-top:2px;
              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .s-tiles { display:flex; justify-content:space-around; margin:11px -4px 8px; }
-    .s-t { display:flex; flex-direction:column; align-items:center; width:46px; }
+    .s-t { display:flex; flex-direction:column; align-items:center; width:46px; cursor:pointer;
+           padding-bottom:4px; border-bottom:1.5px solid transparent; }
+    .s-t.sel { border-bottom-color:#8ce6cc; }
+    .s-t.sel .s-l { color:var(--text); }
     .s-ring { position:relative; width:32px; height:32px; }
     .s-ring svg { position:absolute; inset:0; transform:rotate(-90deg); }
     .s-ring b { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
                 font-size:9px; font-weight:650; letter-spacing:-.2px; }
     .s-l { font-size:7.5px; font-weight:600; letter-spacing:.4px; color:var(--mid); margin-top:4px; }
+    /* Five readings (with heat) share the same width: each ring a little smaller. */
+    .s-tiles.n5 { margin-left:-6px; margin-right:-6px; }
+    .s-tiles.n5 .s-t { width:40px; }
+    .s-tiles.n5 .s-ring { width:30px; height:30px; }
+    .s-tiles.n5 .s-ring b { font-size:8.5px; }
+    .s-tiles.n5 .s-l { font-size:7px; }
+    .s-cap { font-size:8.5px; color:var(--mid); margin:2px 0 1px; }
     .s-li { display:flex; justify-content:space-between; gap:8px; font-size:10px; padding:5px 0;
             border-top:1px solid rgba(140,230,204,0.10); }
     .s-li span:first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -372,6 +382,10 @@
         if (justDragged) return;
         if (e.target.closest('.cpin')) window.notchAPI.pin('card', id, !pinnedCards.has(id));
         else if (e.target.closest('.cexp')) window.notchAPI.detach(id);
+        else if (id === 'system' && e.target.closest('.s-t')) {
+          sysPick = e.target.closest('.s-t').dataset.res;
+          layoutCards();                     // refills the card, and resizes if its height changed
+        }
       });
       document.getElementById('cards').appendChild(el);
       return el;
@@ -379,26 +393,34 @@
     /* The machine's card: the panel in brief — the verdict, a small ring per
        reading, and the top three behind it. */
     const SC = 2 * Math.PI * 15.5;
-    function miniRing(t) {
+    function miniRing(t, sel) {
       const off = SC * (1 - Math.max(0, Math.min(100, t.pct)) / 100);
-      return `<div class="s-t"><div class="s-ring"><svg viewBox="0 0 36 36">
+      return `<div class="s-t ${t.res === sel ? 'sel' : ''}" data-res="${t.res}"><div class="s-ring"><svg viewBox="0 0 36 36">
         <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--track)" stroke-width="3"/>
         <circle cx="18" cy="18" r="15.5" fill="none" stroke="${t.color}" stroke-width="3" stroke-linecap="round"
           stroke-dasharray="${SC.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/></svg>
-        <b class="num" style="color:${t.sev === 'normal' ? 'var(--text)' : t.color}">${Math.round(t.pct)}%</b></div>
+        <b class="num" style="color:${t.sev === 'normal' ? 'var(--text)' : t.color}">${esc(t.text)}</b></div>
         <div class="s-l">${t.label}</div></div>`;
     }
+    // A ring picked on the card; until then (and after the card closes), the
+    // verdict's. Every reading's list arrives with the payload.
+    let sysPick = null;
+    const SYS_CAP = { cpu: 'Using the most CPU', mem: 'Using the most memory', gpu: 'Using the most GPU',
+                      disk: 'Taking the most space', heat: 'Heating it up the most' };
     function fillSystemCard(el, p) {
+      const sel = sysPick && p.tiles.some((t) => t.res === sysPick) ? sysPick : p.sel;
+      const list = (p.lists && p.lists[sel]) || [], hint = p.hints && p.hints[sel];
       el.innerHTML = `<div class="c-hd">${GLYPH.system}<span class="c-name">${p.label}</span>
         <span class="pin cpin ${pinnedCards.has(p.id) ? 'on' : ''}" title="${pinnedCards.has(p.id) ? 'Unpin' : 'Pin'} this card">${PIN}</span>
         <span class="cexp" title="Open the full panel">${EXPAND}</span></div>
         <div class="s-kick" style="color:${p.color}">${esc(p.kicker)}</div>
         <div class="s-main">${esc(p.main)}</div>
         ${p.sub ? `<div class="s-sub">${esc(p.sub)}</div>` : ''}
-        <div class="s-tiles">${p.tiles.map(miniRing).join('')}</div>` +
-        (p.list.length ? p.list.map((r) => `<div class="s-li"><span>${esc(r.name)}</span>
+        <div class="s-tiles ${p.tiles.length > 4 ? 'n5' : ''}">${p.tiles.map((t) => miniRing(t, sel)).join('')}</div>
+        <div class="s-cap">${SYS_CAP[sel] || ''}</div>` +
+        (list.length ? list.map((r) => `<div class="s-li"><span>${esc(r.name)}</span>
           <span class="num">${esc(r.text)}</span></div>`).join('')
-          : p.hint ? `<div class="s-hint">${esc(p.hint)}</div>` : '');
+          : `<div class="s-hint">${esc(hint || 'Nothing busy')}</div>`);
     }
     function fillCard(el, p) {
       el.classList.toggle('pinned', pinnedCards.has(p.id));
@@ -446,6 +468,7 @@
     function layoutCards() {
       const open = geoState === 'open';
       const want = open ? providers.filter(p => pinnedCards.has(p.id) || p.id === hoverId) : [];
+      if (!want.some(p => p.id === 'system')) sysPick = null;   // opened again, it starts at the verdict
       // Always against the open notch: cards only show while it is open, and
       // sizing against the folded one resized the window on every fold.
       const nh = openHeight();
