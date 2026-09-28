@@ -431,7 +431,7 @@
         <span class="cexp" title="Open the full panel">${EXPAND}</span></div>` +
         (p.rows.length ? p.rows.map(r => `<div class="c-row">
           <div class="c-top"><span class="c-lbl">${r.label}</span>
-            <span class="c-rst">${until(r) ? 'resets ' + until(r) : ''}</span></div>
+            <span class="c-rst">${until(r) ? 'resets ' + esc(until(r)) : ''}</span></div>
           <div class="c-trk"><i style="width:${Math.min(100, r.percent)}%;${fill(p.id, r.percent)}"></i></div>
           <div class="c-val num">${r.percent}% used</div></div>`).join('')
           : `<div class="c-val">${p.note || 'No reading yet'}</div>`) +

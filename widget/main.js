@@ -992,22 +992,27 @@ function showContextMenu(fromWindow) {
  * through as resetsText for the renderer to print verbatim.
  */
 function fromExtensionShape(d) {
-  if (!d || !d.found) return null;
-  const row = (percent, text) => (typeof percent === 'number')
-    ? { percent, severity: 'normal', resetsAt: null, resetsText: text || null, isActive: true }
+  if (!d || typeof d !== 'object' || !d.found) return null;
+  // This arrived over a socket. Keep numbers that are numbers and short plain
+  // strings, so nothing else can reach a renderer; the renderers escape as well.
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const str = (v) => (typeof v === 'string' && v ? v.slice(0, 40) : null);
+  const row = (percent, text) => (num(percent) != null)
+    ? { percent: num(percent), severity: 'normal', resetsAt: null, resetsText: text || null, isActive: true }
     : null;
+  const x = d.extra_usage && typeof d.extra_usage === 'object' ? d.extra_usage : null;
   return {
     ok: true,
     source: 'extension',
     fetchedAt: Date.now(),
     plan: null,
-    session: row(d.session, d.session_reset ? 'in ' + d.session_reset : null),
-    weeklyAll: row(d.weekly_all, d.weekly_reset || null),
+    session: row(d.session, str(d.session_reset) ? 'in ' + str(d.session_reset) : null),
+    weeklyAll: row(d.weekly_all, str(d.weekly_reset)),
     weeklyScoped: row(d.weekly_sonnet, null),
-    extraUsage: d.extra_usage ? {
-      utilization: d.extra_usage.percent,
-      monthlyLimit: d.extra_usage.limit,
-      usedCredits: d.extra_usage.spent,
+    extraUsage: x ? {
+      utilization: num(x.percent),
+      monthlyLimit: num(x.limit),
+      usedCredits: num(x.spent),
       currency: 'USD',
     } : null,
   };
@@ -1015,8 +1020,9 @@ function fromExtensionShape(d) {
 
 /** Pet speaks the old extension dialect; translate rather than touch pet code. */
 function toPetShape() {
-  const q = usageState.quota;
-  if (!q) return extensionData || { found: false };
+  // Through fromExtensionShape, never the socket's raw object.
+  const q = usageState.quota || fromExtensionShape(extensionData);
+  if (!q) return { found: false };
   return {
     found: true,
     session: q.session ? q.session.percent : 0,
@@ -1201,27 +1207,48 @@ function startUsageService() {
 }
 
 // ---- WebSocket server ----
+// The Chrome extension is its only client. Two things keep everyone else out,
+// and each one closes a different door:
+//   - loopback only. Given no host, ws listens on every network interface, so
+//     anyone on the same Wi-Fi could connect.
+//   - the extension's origin only. Loopback does not stop the user's own
+//     browser: any website they open may dial ws://localhost. Browsers always
+//     send the page's Origin on that handshake and a page cannot forge it.
+// What does get in is still only data: see fromExtensionShape.
+const WS_PORT = Number(process.env.HUD_WS_PORT) || 27843;   // env: tests beside a running copy
+
 function startWebSocketServer() {
-  wss = new WebSocket.Server({ port: 27843 });
-  wss.on('connection', (ws) => {
-    // Notify renderer that extension just connected
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('connection-change', true);
-    }
-    ws.on('message', (raw) => {
-      try {
-        extensionData = JSON.parse(raw.toString());
-        // Only surfaces when the OAuth read is failing.
-        if (!usageState.quota) pushUsage();
-      } catch (e) {}
-    });
-    ws.on('close', () => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('connection-change', false);
-      }
-    });
+  const verifyClient = ({ origin }) => typeof origin === 'string' && origin.startsWith('chrome-extension://');
+  // The extension dials "localhost", which may resolve to either loopback.
+  wss = ['127.0.0.1', '::1'].map((host) => {
+    const server = new WebSocket.Server({ host, port: WS_PORT, verifyClient, maxPayload: 64 * 1024 });
+    server.on('connection', onExtensionConnection);
+    server.on('error', (e) => console.log(`[HUD for Claude] WS error (${host}):`, e.message));
+    return server;
   });
-  wss.on('error', (e) => console.log('[HUD for Claude] WS error:', e.message));
+}
+
+function onExtensionConnection(ws) {
+  // ws reports a bad frame or an oversized message (maxPayload) as an 'error'
+  // on the connection; left unheard, that throws in the main process and stalls
+  // the whole app behind an error dialog. It closes the connection either way.
+  ws.on('error', (e) => console.log('[HUD for Claude] WS client error:', e.message));
+  // Notify renderer that extension just connected
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('connection-change', true);
+  }
+  ws.on('message', (raw) => {
+    try {
+      extensionData = JSON.parse(raw.toString());
+      // Only surfaces when the OAuth read is failing.
+      if (!usageState.quota) pushUsage();
+    } catch (e) {}
+  });
+  ws.on('close', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('connection-change', false);
+    }
+  });
 }
 
 // ---- IPC handlers ----

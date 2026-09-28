@@ -281,13 +281,16 @@
       return `in ${m}m`;
     }
 
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
     function quotaRow(label, q, extraSub) {
       if (!q || q.percent == null) return '';
       const bits = [];
       // OAuth gives an ISO timestamp we can count down from; the extension gives
       // a pre-rendered string, which we print as-is.
       const u = untilText(q.resetsAt) || q.resetsText;
-      if (u) bits.push('resets ' + u);
+      if (u) bits.push('resets ' + esc(u));     // resetsText is the extension's string
       if (extraSub) bits.push(extraSub);
       return `<div class="row">
         <div class="row-top"><span class="row-label">${label}</span>
