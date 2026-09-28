@@ -46,7 +46,10 @@ if [ -n "$LIVE" ] && [ "$(printf '%s\n%s\n' "$LIVE" "$VERSION" | sort -V | tail 
   die "the bucket already serves $LIVE, newer than $VERSION — publishing would hide it"
 fi
 
-wrangler whoami 2>/dev/null | grep -q "$ACCOUNT" || die "wrangler is not signed in to the account that owns $BUCKET ($ACCOUNT)"
+# Captured first: piped straight into grep -q, grep's early exit cuts wrangler
+# off mid-write, and pipefail then reports a match as a failure.
+WHO=$(wrangler whoami 2>&1) || true
+grep -q "$ACCOUNT" <<<"$WHO" || die "wrangler is not signed in to the account that owns $BUCKET ($ACCOUNT)"
 git fetch -q origin
 git merge-base --is-ancestor HEAD origin/main || die "this commit is not on origin/main yet — push first"
 gh release view "v$VERSION" -R "$REPO" >/dev/null 2>&1 && die "v$VERSION is already released on GitHub"
