@@ -42,6 +42,8 @@ The Chrome extension lives in [`extension/`](extension/). Load it via `chrome://
 
 Deliberate. The Releases page intentionally doesn't attach `.dmg` / `.exe` binaries — that would collapse the time/money distinction above. If you want it packaged, Gumroad packages it (and lets you decide what it's worth, including $0 if you went there and saw the suggested price). If you want it free, the source is right here and the build is two commands. The Chrome extension stays free on the Web Store either way.
 
+From 3.7.0 on, an installed copy keeps itself current: it fetches new versions from the developer's own download server, checks each one against a signature only the developer can make, and installs it when you choose Restart to Update. That server is there to update copies already installed, not as a download page.
+
 ---
 
 ## How it works
@@ -82,9 +84,11 @@ fill is 95.5% opaque, so very little was ever showing through.
 The Chrome extension still exists and still works — it remains the fallback if
 the credential cannot be read at all — but neither platform needs it any more.
 
-Either way: prompt and reply text is never read, and the only host contacted is
-`api.anthropic.com`, with your own credential, about your own account. Nothing goes to
-the developer — no servers, no analytics, no telemetry.
+Either way: prompt and reply text is never read. The app talks to `api.anthropic.com`
+(and, if you use Codex, `chatgpt.com` and `auth.openai.com`) with your own credential,
+about your own account; and every few hours it asks the developer's download server
+whether there is a newer version — a request that carries nothing about you. No
+analytics, no telemetry, no accounts.
 
 Requires Claude Code installed and signed in — the widget has no login of its own.
 

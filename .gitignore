@@ -1,5 +1,8 @@
 **/node_modules/
 widget/dist/
+release-assets/out/
+# wrangler's cache (holds the account id); publish-release.sh runs wrangler here
+.wrangler/
 **/.DS_Store
 *.blockmap
 extension.zip

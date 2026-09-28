@@ -13,7 +13,7 @@
  *
  * Either state can be pinned: the notch (stays open) and each card (stays
  * beside its ring). It docks on the right or left edge; drag it across the
- * middle of the screen to switch.
+ * middle of the screen to switch, or onto another screen to move there.
  *
  * The window is resized for each state rather than kept large and transparent,
  * because a transparent region of a window still swallows clicks on macOS —
@@ -38,13 +38,25 @@ const FOLD_DELAY = 380;             // ms the cursor may stray before it folds
 class NotchWindow {
   /**
    * @param {object} o
-   * @param {object} o.prefs   { centerY, side: 'right'|'left', pinned, cards: [ids] }
-   * @param {(p:object)=>void} o.onPrefs   persist position / side / pins
+   * @param {object} o.prefs   { centerFrac, displays: [ids], side: 'right'|'left', pinned, cards: [ids] }
+   * @param {(p:object)=>void} o.onPrefs   persist position / screen / side / pins
    * @param {(id:string)=>void} o.onActivate   the user clicked a ring or card
    * @param {()=>void} o.onContextMenu
    */
   constructor({ prefs = {}, onPrefs, onActivate, onContextMenu }) {
-    this.centerY = typeof prefs.centerY === 'number' ? prefs.centerY : null;
+    // Screens the notch has been put on, most recent first. It sits on the first
+    // one still connected, so unplugging a screen sends it back to the main one
+    // and plugging that screen in again brings it back.
+    this.displays = Array.isArray(prefs.displays) ? prefs.displays.filter(Number.isFinite) : [];
+    this._resolveDisplay();
+    // Height along the edge, as a fraction of the screen's usable height, so it
+    // lands in the same place on a screen of any size.
+    this.centerFrac = typeof prefs.centerFrac === 'number' ? prefs.centerFrac : null;
+    if (this.centerFrac == null && typeof prefs.centerY === 'number') {
+      // Older prefs held an absolute y, which was always on the main screen.
+      const wa = screen.getPrimaryDisplay().workArea;
+      this.centerFrac = (prefs.centerY - wa.y) / wa.height;
+    }
     this.side = prefs.side === 'left' ? 'left' : 'right';
     this.pinned = !!prefs.pinned;
     this.pinnedCards = Array.isArray(prefs.cards) ? prefs.cards.slice() : [];
@@ -127,15 +139,20 @@ class NotchWindow {
     ipcMain.on('notch:drag', (e, phase, screenY, screenX) => {
       if (!mine(e)) return;
       if (phase === 'start') {
-        this.dragging = true; this._dragStartY = screenY; this._dragStartCenter = this._center();
+        // Where on the notch it was grabbed, kept through the whole drag — also
+        // across screens — so the notch never jumps to centre on the pointer.
+        this.dragging = true; this._grab = this._clampCenter(this._center()) - screenY;
         return;
       }
       if (phase === 'move' && this.dragging) {
-        this.centerY = this._clampCenter(this._dragStartCenter + (screenY - this._dragStartY));
+        // Dragged onto another screen: the notch goes with the pointer.
+        const d = screen.getDisplayNearestPoint({ x: Math.round(screenX), y: Math.round(screenY) });
+        if (d.id !== this.display.id) this._moveTo(d.id);
         // Dragged past the middle of the screen: move to the other edge.
         const wa = this._wa();
         const side = screenX < wa.x + wa.width / 2 ? 'left' : 'right';
         if (side !== this.side) { this.side = side; this._sendState(); }
+        this._setCenter(screenY + this._grab);
         this._apply();
         return;
       }
@@ -147,11 +164,29 @@ class NotchWindow {
   }
 
   _savePrefs() {
-    if (this.onPrefs) this.onPrefs({ centerY: this.centerY, side: this.side,
+    // centerY: undefined drops the pre-3.7 key from the file once it is migrated.
+    if (this.onPrefs) this.onPrefs({ centerFrac: this.centerFrac, centerY: undefined,
+                                     displays: this.displays.slice(), side: this.side,
                                      pinned: this.pinned, cards: this.pinnedCards.slice() });
   }
 
-  _wa() { return screen.getPrimaryDisplay().workArea; }
+  /** Pick the screen again: the most recent one the notch was put on that is
+   *  still connected, else the main screen. Cached rather than looked up per
+   *  call, because the 60ms tick reads the work area several times a pass;
+   *  display events and moves refresh it. */
+  _resolveDisplay() {
+    const all = screen.getAllDisplays();
+    this.display = this.displays.map((id) => all.find((d) => d.id === id)).find(Boolean)
+                || screen.getPrimaryDisplay();
+  }
+
+  /** Put the notch on a screen, and remember that screen first. */
+  _moveTo(id) {
+    this.displays = [id, ...this.displays.filter((d) => d !== id)].slice(0, 4);
+    this._resolveDisplay();
+  }
+
+  _wa() { return this.display.workArea; }
 
   _notchH() { return Math.round(2 * FLARE_Y + (this.rows - 1) * ROW_H + LABEL_DROP); }
 
@@ -172,7 +207,12 @@ class NotchWindow {
 
   _center() {
     const wa = this._wa();
-    return this.centerY == null ? wa.y + Math.round(wa.height * 0.24) : this.centerY;
+    return wa.y + Math.round(wa.height * (this.centerFrac == null ? 0.24 : this.centerFrac));
+  }
+
+  _setCenter(y) {
+    const wa = this._wa();
+    this.centerFrac = (this._clampCenter(y) - wa.y) / wa.height;
   }
 
   _clampCenter(c) {
@@ -300,6 +340,15 @@ class NotchWindow {
     this._savePrefs();
   }
 
+  /** The menu's pick of screen: same edge, same height, on that screen. */
+  setDisplay(id) {
+    this._moveTo(id);
+    this._apply();
+    this._savePrefs();
+  }
+
+  displayId() { return this.display.id; }
+
   _afterPinChange() {
     this._savePrefs();
     this._sendState();
@@ -335,8 +384,9 @@ class NotchWindow {
     };
   }
 
-  /** Displays change (monitor unplugged, resolution): re-seat on the edge. */
-  reseat() { this._apply(); }
+  /** Displays change (plugged in or out, resolution, Dock): find the screen
+   *  again and re-seat on its edge. */
+  reseat() { this._resolveDisplay(); this._apply(); }
 }
 
 module.exports = NotchWindow;

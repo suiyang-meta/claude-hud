@@ -7,6 +7,79 @@ are versioned independently.
 
 # Desktop app
 
+## [3.7.0] - 2026-09-28
+
+### Added
+
+- **Updates from inside the app.** The HUD asks the developer's download server
+  for a newer version every few hours and downloads it in the background. When it is ready,
+  right-click → Restart to Update, or click the line at the foot of the Claude
+  panel; the HUD quits, swaps in the new version and reopens in a few seconds,
+  settings intact. Nothing is installed until you choose to. Every release is
+  signed with the developer's own key, and a download that does not match its
+  signature is refused. Right-click → Updates holds Check Now and Check
+  Automatically. This version still installs by hand once, since the copies
+  before it have no updater; later ones install from inside the app.
+  (Windows: the same design, not yet run on real Windows hardware.)
+- **The notch on any screen.** Drag it onto another display and it docks on
+  that display's edge, or pick one from right-click → Notch Display; the panel
+  opens beside it there. It remembers the screen: unplug it and the notch goes
+  to the main screen, plug it back in and the notch returns.
+
+### Fixed
+
+- With both panels open against a screen to the left of the main one, the
+  second panel was placed on the main screen instead.
+
+## [3.6.0] - 2026-09-21
+
+### Changed
+
+- Much lighter at rest. The pet and its button are now closed while the panel
+  is folded rather than hidden; measured idle draw went from about 5% of a core
+  to under 1%.
+
+## [3.5.1] - 2026-09-21
+
+### Added
+
+- Right-click → Show Dock Icon (macOS) turns the Dock tile off.
+
+### Fixed
+
+- Claude Fable 5.1 reads cache at 0.025× input, not 0.1×; its spend had been
+  overstated by about 75%. Sonnet 5 is priced at $2 / $10 per million tokens.
+
+## [3.5.0] - 2026-09-21
+
+### Changed
+
+- The Codex sign-in is renewed before it expires, the way the Codex CLI does
+  it, so the Codex ring no longer goes stale on a machine without the CLI.
+
+## [3.4.2] - 2026-09-21
+
+### Added
+
+- The same sign-in item for Codex. Both items now run the CLI's login command
+  directly rather than an interactive session.
+
+## [3.4.1] - 2026-09-21
+
+### Fixed
+
+- The sign-in item finds Claude Code where its installer put it, even when a
+  new terminal's PATH does not include that folder, and says so plainly when it
+  is not installed.
+
+## [3.4.0] - 2026-09-21
+
+### Added
+
+- Right-click → Sign in to Claude Code opens a terminal running its login,
+  for when the quota has gone stale.
+- The open card is a drag handle too: drag the HUD by it.
+
 ## [3.3.0] - 2026-09-19
 
 ### Added

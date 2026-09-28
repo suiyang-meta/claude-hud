@@ -3,6 +3,11 @@ const { app, BrowserWindow, dialog, ipcMain, powerMonitor, screen, Menu, shell }
 
 const IS_MAC = process.platform === 'darwin';
 
+// A test run's own settings folder. Without it a dev copy and the installed
+// app share one prefs.json, and whatever a test changes — pins, side, screen,
+// Launch at Login — carries into the copy that is actually in use.
+if (process.env.HUD_USER_DATA_DIR) app.setPath('userData', process.env.HUD_USER_DATA_DIR);
+
 // Attribution. Kept as one constant so every surface that names the project —
 // the panel footer, the context menu, the macOS about panel — cannot drift apart.
 const REPO_URL = 'https://github.com/suiyang-meta/claude-hud';
@@ -19,6 +24,7 @@ const codexAdapter = require('./pet/CodexPetAdapter');
 const OAuthUsage = require('./usage/OAuthUsage');
 const CodexUsage = require('./usage/CodexUsage');
 const NotchWindow = require('./notch/NotchWindow');
+const Updater = require('./update/Updater');
 const { LocalUsageScanner } = require('./usage/LocalUsage');
 
 let mainWindow;
@@ -67,6 +73,7 @@ let isHovered = false;
 let notch;
 let panelVisible = false;
 let codexWindow = null;       // Codex's own panel, created on first open
+let updater;
 
 let petWindow;
 let petLibrary;
@@ -337,11 +344,14 @@ function placePanel(win, other) {
   const b = win.getBounds();
   let at = notch ? notch.anchorFor(b.width, b.height) : { x: b.x, y: b.y };
   if (other && !other.isDestroyed() && other.isVisible()) {
-    // Line up away from the notch's edge, so the two panels never overlap.
+    // Line up away from the notch's edge, so the two panels never overlap —
+    // kept on the other panel's screen, whose x can be negative (a screen to
+    // the left of the main one), so clamping at 0 would throw it across.
     const o = other.getBounds();
+    const wa = screen.getDisplayMatching(o).workArea;
     at = notch && notch.side === 'left'
-      ? { x: o.x + o.width + 10, y: o.y }
-      : { x: Math.max(0, o.x - b.width - 10), y: o.y };
+      ? { x: Math.min(wa.x + wa.width - b.width, o.x + o.width + 10), y: o.y }
+      : { x: Math.max(wa.x, o.x - b.width - 10), y: o.y };
   }
   win.setBounds({ ...b, ...at });
 }
@@ -438,6 +448,100 @@ function initNotch() {
   });
   screen.on('display-metrics-changed', () => notch && notch.reseat());
   screen.on('display-removed', () => notch && notch.reseat());
+  screen.on('display-added', () => notch && notch.reseat());   // its screen came back
+}
+
+/** The screens to offer in the menu, by the name the OS gives them. Two
+ *  identical monitors share a name, so a repeat gets a number. */
+function displayMenu() {
+  const seen = {};
+  return screen.getAllDisplays().map((d, i) => {
+    const name = d.label || `Display ${i + 1}`;
+    seen[name] = (seen[name] || 0) + 1;
+    return {
+      label: seen[name] > 1 ? `${name} (${seen[name]})` : name,
+      type: 'radio',
+      checked: notch.displayId() === d.id,
+      click: () => notch.setDisplay(d.id),
+    };
+  });
+}
+
+// ---- Updates ----
+// Checked in the background; a newer version downloads quietly and then waits
+// for the user to restart into it — never installed without them.
+let promptWhenReady = false;   // a "Check Now" is waiting on its download
+
+function onUpdateState(s) {
+  if (s.phase !== 'downloading') {
+    console.log('[HUD] update:', s.phase, s.version || '', s.message || '');
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-state', s);
+  if (!promptWhenReady || (s.phase !== 'ready' && s.phase !== 'error')) return;
+  promptWhenReady = false;
+  if (s.phase === 'ready') offerRestart(s.version);
+  else dialog.showMessageBox({ type: 'warning', message: 'The update could not be downloaded',
+                               detail: s.message, buttons: ['OK'] });
+}
+
+function offerRestart(version) {
+  dialog.showMessageBox({
+    type: 'info',
+    message: `HUD for Claude ${version} is ready`,
+    detail: 'Restart now to switch to it. It takes a few seconds, and your settings stay as they are.',
+    buttons: ['Restart Now', 'Later'], defaultId: 0, cancelId: 1,
+  }).then(({ response }) => { if (response === 0) updater.install(); });
+}
+
+async function checkForUpdatesNow() {
+  const s = await updater.check();
+  const info = (message, detail, buttons = ['OK']) =>
+    dialog.showMessageBox({ type: 'info', message, detail, buttons, defaultId: 0 });
+  if (s.phase === 'ready') return offerRestart(s.version);
+  if (s.phase === 'downloading') {
+    promptWhenReady = true;    // asks to restart the moment it lands
+    return info(`HUD for Claude ${s.version} is available`,
+                'It is downloading now. You will be asked to restart when it is ready.');
+  }
+  if (s.phase === 'current') {
+    return info('You’re up to date', `HUD for Claude ${app.getVersion()} is the newest version.`);
+  }
+  if (s.phase === 'available') {
+    const { response } = await info(`HUD for Claude ${s.version} is available`,
+      'This copy cannot update itself where it is — it was opened from the disk image, or from '
+      + 'a folder it cannot write to. Download the new version and install it as before.',
+      ['Open Download Page', 'Later']);
+    if (response === 0) shell.openExternal(updater.downloadPage);
+    return;
+  }
+  return info('Couldn’t check for updates', s.message);
+}
+
+/** The update line at the top of the menu, while there is one to show. */
+function updateMenuHead() {
+  const s = updater ? updater.state : {};
+  const item =
+      s.phase === 'ready' ? { label: `Restart to Update (${s.version})`, click: () => updater.install() }
+    : s.phase === 'downloading' ? { label: `Downloading Update… ${Math.round(s.progress * 100)}%`, enabled: false }
+    : s.phase === 'available' ? { label: `Download Update (${s.version})…`,
+                                  click: () => shell.openExternal(updater.downloadPage) }
+    : null;
+  return item ? [item, { type: 'separator' }] : [];
+}
+
+function initUpdater() {
+  updater = new Updater({ onChange: onUpdateState });
+  updater.start(loadPrefs().autoUpdate !== false);
+  // The install script put the old version back and reopened it: say why.
+  if (updater.failure) {
+    dialog.showMessageBox({
+      type: 'warning',
+      message: 'The update did not complete',
+      detail: `${updater.failure}.\n\nYou are still on HUD for Claude ${app.getVersion()}. `
+            + 'You can install the new version by hand from the download page.',
+      buttons: ['Open Download Page', 'OK'], defaultId: 1, cancelId: 1,
+    }).then(({ response }) => { if (response === 0) shell.openExternal(updater.downloadPage); });
+  }
 }
 
 // ---- Context menu (right-click on HUD) ----
@@ -565,6 +669,7 @@ function showContextMenu(fromWindow) {
 
   const codexOpen = codexWindow && !codexWindow.isDestroyed() && codexWindow.isVisible();
   const template = [
+    ...updateMenuHead(),
     panelVisible
       ? { label: 'Fold Claude Panel', click: () => foldPanel() }
       : { label: 'Open Claude Panel', click: () => openPanel() },
@@ -579,6 +684,9 @@ function showContextMenu(fromWindow) {
         label: side === 'right' ? 'Right Edge' : 'Left Edge', type: 'radio',
         checked: notch.side === side, click: () => notch.setSide(side),
       })) },
+      // Only worth a line when there is somewhere else to put it.
+      ...(screen.getAllDisplays().length > 1
+        ? [{ label: 'Notch Display', submenu: displayMenu() }] : []),
       { type: 'separator' },
     ] : []),
     {
@@ -642,6 +750,23 @@ function showContextMenu(fromWindow) {
     {
       label: `HUD for Claude v${app.getVersion()}`,
       enabled: false
+    },
+    {
+      label: 'Updates',
+      submenu: [
+        { label: 'Check Now…', click: () => checkForUpdatesNow() },
+        {
+          label: 'Check Automatically',
+          type: 'checkbox',
+          checked: loadPrefs().autoUpdate !== false,
+          click: (menuItem) => {
+            const p = loadPrefs();
+            p.autoUpdate = menuItem.checked;
+            savePrefs(p);
+            updater.setAuto(menuItem.checked);
+          }
+        },
+      ]
     },
     { type: 'separator' },
     {
@@ -922,7 +1047,10 @@ ipcMain.on('refresh-now', () => {
 ipcMain.on('get-data', (event) => {
   const quota = usageState.quota || fromExtensionShape(extensionData);
   event.reply('usage-update', { ...usageState, quota });
+  // A reload would otherwise forget an update that is waiting.
+  if (updater) event.reply('update-state', updater.state);
 });
+ipcMain.on('update:install', () => { if (updater) updater.install(); });
 // Floor the window at the height its leanest layout needs, so dragging shorter
 // stops at that point instead of scaling the content down. The renderer knows
 // the number because only it has measured the layout.
@@ -982,6 +1110,7 @@ app.whenReady().then(() => {
   initPet();
   initNotch();
   startUsageService();
+  initUpdater();
 });
 
 app.on('window-all-closed', () => app.quit());

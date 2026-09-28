@@ -17,4 +17,6 @@ contextBridge.exposeInMainWorld('hudAPI', {
   resizeWindow: (height) => ipcRenderer.send('resize-window', height),
   setMinHeight: (height) => ipcRenderer.send('set-min-height', height),
   openRepo: () => ipcRenderer.send('open-repo'),
+  onUpdateState: (cb) => ipcRenderer.on('update-state', (e, s) => cb(s)),
+  installUpdate: () => ipcRenderer.send('update:install'),
 });

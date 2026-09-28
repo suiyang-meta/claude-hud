@@ -32,18 +32,20 @@
 <body>
 
 <h1>HUD for Claude — Privacy Policy</h1>
-<p class="updated">Last updated: September 21, 2026</p>
+<p class="updated">Last updated: September 28, 2026</p>
 
 <p>HUD for Claude is a desktop app (macOS) with an optional Chrome extension. Both are
 built by a single independent developer. This policy explains exactly what is read,
 where it goes, and what is stored.</p>
 
 <h2>Short version</h2>
-<p>No data is sent to the developer or to any third party. There are no servers, no
+<p>No data about you is sent to the developer or to any third party. There are no
 analytics, no accounts, no tracking. The app reads files already on your computer, and
-makes one kind of network request: asking Anthropic — and, if you use Codex, OpenAI —
+makes two kinds of network request: asking Anthropic — and, if you use Codex, OpenAI —
 about <em>your own</em> account, using <em>your own</em> credential that Claude Code or
-the Codex CLI already stored on this machine.</p>
+the Codex CLI already stored on this machine; and asking the developer's download
+server, every few hours, whether a newer version of the app has been published — a
+request that carries nothing about you.</p>
 
 <h2>What the desktop app reads</h2>
 <ul>
@@ -84,6 +86,11 @@ the Codex CLI already stored on this machine.</p>
       counters per day and model, so the app doesn't rescan every file each time. It
       holds numbers only: no prompts, no replies, no credentials.</li>
   <li><strong>A preferences file</strong> — your "Launch at Login" choice, pet settings.</li>
+  <li><strong>Updates, when there is one:</strong> the new version is downloaded to a
+      temporary folder and checked against the developer's signature; when you choose
+      Restart to Update, it takes the old app's place and the download is deleted. A few
+      lines recording each update's version and outcome are kept in
+      <code>update.log</code>, next to the preferences file.</li>
 </ul>
 
 <h2>Network requests</h2>
@@ -95,9 +102,17 @@ the Codex CLI already stored on this machine.</p>
       have a Codex sign-in on this machine.</li>
   <li><code>auth.openai.com</code> — to renew that Codex sign-in. Only if you have one,
       and only when it is about to expire.</li>
+  <li><code>pub-73af813618eb49f9a18951f929fab6e6.r2.dev</code> — the developer's download
+      server, a Cloudflare R2 bucket — every few hours, to see whether a newer version has
+      been published, and when one has, to download it. The request carries nothing about
+      you or your usage: only what any download carries, your IP address and the app's
+      version in its user agent. Cloudflare runs the server; the developer's dashboard
+      shows how many requests it received, not who made them. To stop it: right-click →
+      Updates → uncheck Check Automatically.</li>
 </ul>
-<p>Nothing is sent to the developer. There are no analytics SDKs, crash reporters, ad
-networks, or third-party APIs of any kind.</p>
+<p>Nothing about you is sent to the developer: the update check asks for a file and sends
+nothing back. There are no analytics SDKs, crash reporters, ad networks, or third-party
+APIs of any kind.</p>
 
 <h2>The Chrome extension</h2>
 <p><strong>On macOS it is not needed</strong> — the keychain route above supplies the

@@ -184,7 +184,17 @@
            transition:color .22s; }
     .sig:hover { color:rgba(217,119,87,0.72); }
     #inner.tight .sig { display:none; }   /* the strip has no room to spare */
+    #inner.tight .sig.with-upd { display:flex; }   /* …but a waiting update earns its line */
     #inner.wide .sig { grid-column: 1 / -1; }   /* span both columns, not a third cell */
+
+    /* A downloaded update, waiting on a restart: shares the attribution's line
+       rather than adding one, so the panel does not change height for it. */
+    .sig.with-upd { display:flex; justify-content:space-between; align-items:baseline; }
+    .sig.with-upd:hover { color:rgba(242,236,231,0.13); }   /* each half lights on its own */
+    .sig.with-upd #sig { transition:color .22s; }
+    .sig.with-upd #sig:hover { color:rgba(217,119,87,0.72); }
+    .sig .upd { color:rgba(217,119,87,0.72); font-size:8px; transition:color .22s; }
+    .sig .upd:hover { color:rgb(217,119,87); }
 
     .empty { text-align:center; padding:22px 4px; }
     .empty .h { font-size:11.5px; color:var(--text-mid); font-weight:600; margin-bottom:6px; }
@@ -225,6 +235,7 @@
     const liveDot = document.getElementById('liveDot');
 
     let state = { quota: null, local: null, profile: null, quotaStale: false };
+    let upd = null;             // the updater's state, from main
     let heroMode = 'usd';     // 'usd' | 'tokens'
     let compact  = false;     // amber button: quota bars only
     let locked   = false;     // green button: never fade out
@@ -386,7 +397,10 @@
         </div>`;
       }
 
-      const sig = '<div class="sig" id="sig" title="HUD for Claude — by Sui1491">by Sui1491</div>';
+      const sig = upd && upd.phase === 'ready'
+        ? `<div class="sig with-upd"><span class="upd" id="upd" title="Restart into the new version">Update to ${upd.version} — restart</span>
+             <span id="sig" title="HUD for Claude — by Sui1491">by Sui1491</span></div>`
+        : '<div class="sig" id="sig" title="HUD for Claude — by Sui1491">by Sui1491</div>';
       body.innerHTML = (wide
         ? `<div class="col-a">${hero}${quotaHtml}</div>
            <div class="col-b">${models}${spark}${life}</div>`
@@ -394,6 +408,8 @@
 
       const sigEl = document.getElementById('sig');
       if (sigEl) sigEl.addEventListener('click', () => window.hudAPI.openRepo());
+      const updEl = document.getElementById('upd');
+      if (updEl) updEl.addEventListener('click', () => window.hudAPI.installUpdate());
 
       syncLayout();
       const heroEl = document.getElementById('hero');
@@ -469,8 +485,11 @@
       /* The trimmed layout is the leanest the panel ever gets and its intrinsic
          height is constant (measured: 146px — a header and two bars, nothing
          that wraps). Publishing it as the window's minimum height means the
-         panel can never be dragged into a size that squashes even that. */
-      const minH = Math.ceil(146 * (w / base));
+         panel can never be dragged into a size that squashes even that. A
+         waiting update adds its line (and that line's 7px margin) to the strip,
+         and raising the minimum is what grows a strip too short to hold it. */
+      const updRow = inner.classList.contains('tight') && document.querySelector('.sig.with-upd');
+      const minH = Math.ceil((146 + (updRow ? updRow.offsetHeight + 7 : 0)) * (w / base));
       if (minH !== lastMinH) { lastMinH = minH; window.hudAPI.setMinHeight(minH); }
 
       const padX = Math.round(Math.max(9, Math.min(16, base * 0.046)));
@@ -551,6 +570,13 @@
       if (p.profile !== undefined) state.profile = p.profile;
       if (p.quotaStale !== undefined) state.quotaStale = p.quotaStale;
       render();
+    });
+    window.hudAPI.onUpdateState((s) => {
+      // Only a finished download changes the panel; progress would re-render it
+      // fifty times for nothing.
+      const was = upd && upd.phase === 'ready', now = s && s.phase === 'ready';
+      upd = s;
+      if (was !== now) render();
     });
     window.hudAPI.getData();
     setInterval(render, 60000);
