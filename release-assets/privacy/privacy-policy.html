@@ -34,8 +34,8 @@
 <h1>HUD for Claude — Privacy Policy</h1>
 <p class="updated">Last updated: September 28, 2026</p>
 
-<p>HUD for Claude is a desktop app (macOS) with an optional Chrome extension. Both are
-built by a single independent developer. This policy explains exactly what is read,
+<p>HUD for Claude is a desktop app for macOS and Windows, with an optional Chrome
+extension. Both are built by a single independent developer. This policy explains exactly what is read,
 where it goes, and what is stored.</p>
 
 <h2>Short version</h2>
@@ -49,10 +49,15 @@ request that carries nothing about you.</p>
 
 <h2>What the desktop app reads</h2>
 <ul>
-  <li><strong>Your Claude Code credential, from the macOS keychain</strong>
-      (<code>Claude Code-credentials</code>). macOS will ask your permission the first
-      time. The app uses it only to call Anthropic's own API on your behalf, and never
-      writes it to a file, a log, or anywhere off this machine.</li>
+  <li><strong>Your Claude Code credential, from wherever Claude Code keeps it.</strong>
+      On macOS that is the keychain entry <code>Claude Code-credentials</code>, and macOS
+      will ask your permission the first time. On Windows — and on a Mac whose keychain
+      has no entry, or where you declined — it is Claude Code's own file,
+      <code>~/.claude/.credentials.json</code> (<code>%USERPROFILE%\.claude\</code> on
+      Windows, or the folder Claude Code has been set to use instead). The app uses it
+      only to call Anthropic's own API on your behalf. It is never copied to a log, to
+      another file, or anywhere off this machine; the one write is putting a renewed
+      credential back where it came from, below.</li>
   <li><strong>Your account name, email, and plan tier</strong> — returned by Anthropic
       when the app asks who the credential belongs to, so the panel can show whose usage
       it is displaying. Shown on your screen only.</li>
@@ -70,10 +75,13 @@ request that carries nothing about you.</p>
 
 <h2>What the desktop app writes</h2>
 <ul>
-  <li><strong>Back to the keychain:</strong> Anthropic issues a new credential each time
-      the old one is renewed and invalidates the previous one, so the app must store the
-      replacement or Claude Code would be signed out. It writes back only that renewed
-      credential, to the same entry it read from, and verifies the write.</li>
+  <li><strong>Back to wherever the Claude credential came from:</strong> Anthropic issues
+      a new credential each time the old one is renewed and invalidates the previous one,
+      so the app must store the replacement or Claude Code would be signed out. It writes
+      back only that renewed credential, to the store it read from — the keychain entry,
+      or <code>.credentials.json</code> — and reads it back to verify the write. In the
+      file it replaces only Claude's sign-in section, keeps every other key, and swaps
+      it in atomically, so a half-written file can never sign Claude Code out.</li>
   <li><strong>Back to <code>~/.codex/auth.json</code>:</strong> your Codex sign-in expires
       about ten days after it is issued, and only the Codex CLI renews it — which never
       happens on a machine where that CLI is not being run. So when it is within an hour
@@ -81,11 +89,13 @@ request that carries nothing about you.</p>
       back. OpenAI issues a new credential each time and invalidates the previous one, so
       the file is rewritten whole, atomically, with every other key in it preserved, and
       read back to confirm the write before the new credential is used.</li>
-  <li><strong>A local cache</strong> at
-      <code>~/Library/Application Support/claude-hud/usage-cache.json</code> — token
+  <li><strong>A local cache</strong>, <code>usage-cache.json</code> in the app's own folder
+      (<code>~/Library/Application Support/claude-hud/</code> on macOS,
+      <code>%APPDATA%\claude-hud\</code> on Windows) — token
       counters per day and model, so the app doesn't rescan every file each time. It
       holds numbers only: no prompts, no replies, no credentials.</li>
-  <li><strong>A preferences file</strong> — your "Launch at Login" choice, pet settings.</li>
+  <li><strong>A preferences file</strong> — your "Launch at Login" choice, and your pet,
+      notch and update settings.</li>
   <li><strong>Updates, when there is one:</strong> the new version is downloaded to a
       temporary folder and checked against the developer's signature; when you choose
       Restart to Update, it takes the old app's place and the download is deleted. A few

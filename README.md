@@ -27,14 +27,15 @@ git clone https://github.com/suiyang-meta/claude-hud.git
 cd claude-hud/widget
 npm install
 
-# Build for your platform
-npm run build:mac    # → widget/dist/HUD for Claude-2.0.0-arm64.dmg
-npm run build:win    # → widget/dist/HUD for Claude Setup 2.0.0.exe
-npm run build        # → both at once
+# Build for your platform (<version> is the one in widget/package.json)
+npm run build:mac    # → widget/dist/HUD for Claude-<version>-arm64.dmg
+npm run build:win    # → widget/dist/HUD for Claude Setup <version>.exe
 
 # Or run from source (dev mode)
 npm start
 ```
+
+The official releases are built with [`scripts/package-release.sh`](scripts/package-release.sh), which runs on macOS only; its Windows build is a zip installed by `install.ps1`, not the installer `build:win` makes.
 
 The Chrome extension lives in [`extension/`](extension/). Load it via `chrome://extensions` → Developer mode → Load unpacked, or just grab it from the Chrome Web Store linked above.
 
@@ -101,8 +102,9 @@ Full privacy policy: [release-assets/privacy/privacy-policy.html](release-assets
 ```
 widget/             Electron desktop app (main.js, preload.js, index.html, icon)
 extension/          Chrome extension (manifest v3, background, content scripts)
-release-assets/     Distribution copy: install README, troubleshooting,
-                    landing page source, privacy policy, store listings
+release-assets/     Distribution copy: install guides and scripts,
+                    landing page source, privacy policy
+scripts/            Release tooling: package-release.sh builds and signs, publish-release.sh ships
 docs/               GitHub Pages deploy of the landing page (synced from release-assets/landing-page/)
 ```
 
@@ -112,8 +114,8 @@ docs/               GitHub Pages deploy of the landing page (synced from release
 
 The desktop app is **not** signed on either platform (no $99/yr Apple Developer cert, no $200+/yr Microsoft cert on a side project). On first launch:
 
-- **Mac**: macOS may show "HUD for Claude is damaged" — it isn't, that's Gatekeeper blocking unsigned apps. Run `xattr -cr "/Applications/HUD for Claude.app"` in Terminal once, then open normally. The setup README has the full walkthrough.
-- **Windows**: SmartScreen will pop up "Windows protected your PC" on the installer — click *More info* → *Run anyway*.
+- **Mac**: macOS may show "HUD for Claude is damaged" — it isn't, that's Gatekeeper blocking unsigned apps. Run `xattr -cr "/Applications/HUD for Claude.app"` in Terminal once, then open normally — the `install.sh` in the download does this for you.
+- **Windows**: the download is a zip with an install script. PowerShell won't run an unsigned script by default, so start it with `powershell -ExecutionPolicy Bypass -File .\install.ps1` — that applies to this one run and changes no system setting. SmartScreen may still show "Windows protected your PC" the first time the app starts — click *More info* → *Run anyway*. The Windows guide in the zip walks through both.
 
 If you'd rather not run an unsigned binary, build it yourself from this source (see above).
 
