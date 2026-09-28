@@ -19,3 +19,6 @@ AGENTS.md
 # session 05: internal launch work product (含商业策略 reasoning + 定价心理学 + 上架准备 meta-instructions)
 release-assets/chrome-web-store/
 release-assets/gumroad/
+
+# built from widget/sysmon/hud-sysmon.c by sysmon/build.js
+widget/sysmon/hud-sysmon

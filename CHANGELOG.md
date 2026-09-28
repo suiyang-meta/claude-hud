@@ -7,6 +7,23 @@ are versioned independently.
 
 # Desktop app
 
+## [Unreleased]
+
+### Added
+
+- **System Monitor: what is slowing this machine down.** Off until you turn it
+  on (right-click → System Monitor). A third ring on the notch names the
+  reading under the most pressure — CPU, memory, GPU, disk space or heat — and
+  who is behind it: an app, a dev server by its project folder, or a Claude
+  Code session by the project it is working in. Its card and panel list the
+  biggest users of each, memory pressure and swap, what is reading and writing
+  the disk, and on a Mac the chip, SSD and battery temperatures. Amber means
+  under pressure, red critical; nothing pops up. Click a name to open Activity
+  Monitor. On a Mac, Find what's using space measures build output and
+  dependencies across your code folders, caches, Downloads and the like — about
+  half a minute, nothing deleted. Everything stays on the machine.
+  (Windows: CPU, memory and disk only, not yet run on real Windows hardware.)
+
 ## [3.7.0] - 2026-09-28
 
 ### Added

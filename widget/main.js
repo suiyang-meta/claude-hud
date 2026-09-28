@@ -26,6 +26,8 @@ const CodexUsage = require('./usage/CodexUsage');
 const NotchWindow = require('./notch/NotchWindow');
 const Updater = require('./update/Updater');
 const { LocalUsageScanner } = require('./usage/LocalUsage');
+const { SystemMonitor, fmtMem, fmtDisk, fmtPct } = require('./sysmon/SystemMonitor');
+const { scanDisk } = require('./sysmon/DiskScan');
 
 let mainWindow;
 // Quota now comes from Claude Code's own OAuth credential; the extension
@@ -73,6 +75,10 @@ let isHovered = false;
 let notch;
 let panelVisible = false;
 let codexWindow = null;       // Codex's own panel, created on first open
+let sysWindow = null;         // the machine's own panel, likewise
+let sysmon = null;            // running only while System Monitor is on
+let sysState = null;
+let diskScan = { running: false, progress: '', result: null };
 let updater;
 
 let petWindow;
@@ -335,21 +341,25 @@ function setPetsVisible(v) {
 }
 
 /**
- * Where a panel opens: beside the notch, or — if the other provider's panel is
- * already sitting there — just to the left of that one, so they never overlap.
- * The notch stays on the edge (folded) while panels are open, so the other ring
- * is always one hover away.
+ * Where a panel opens: beside the notch, or — if other panels are already
+ * sitting there — just beyond the one farthest from the edge, so they never
+ * overlap. The notch stays on the edge (folded) while panels are open, so the
+ * other rings are always one hover away.
  */
-function placePanel(win, other) {
+function placePanel(win, ...others) {
   const b = win.getBounds();
   let at = notch ? notch.anchorFor(b.width, b.height) : { x: b.x, y: b.y };
-  if (other && !other.isDestroyed() && other.isVisible()) {
-    // Line up away from the notch's edge, so the two panels never overlap —
-    // kept on the other panel's screen, whose x can be negative (a screen to
-    // the left of the main one), so clamping at 0 would throw it across.
-    const o = other.getBounds();
+  const left = notch && notch.side === 'left';
+  const open = others.filter((o) => o && o !== win && !o.isDestroyed() && o.isVisible())
+    .map((o) => o.getBounds())
+    .sort((a, c) => (left ? (c.x + c.width) - (a.x + a.width) : a.x - c.x));
+  if (open.length) {
+    // Line up away from the notch's edge — kept on the other panel's screen,
+    // whose x can be negative (a screen to the left of the main one), so
+    // clamping at 0 would throw it across.
+    const o = open[0];
     const wa = screen.getDisplayMatching(o).workArea;
-    at = notch && notch.side === 'left'
+    at = left
       ? { x: Math.min(wa.x + wa.width - b.width, o.x + o.width + 10), y: o.y }
       : { x: Math.max(wa.x, o.x - b.width - 10), y: o.y };
   }
@@ -360,7 +370,7 @@ function openPanel() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (notch) notch.fold();
   if (panelVisible) { mainWindow.show(); return; }
-  placePanel(mainWindow, codexWindow);
+  placePanel(mainWindow, codexWindow, sysWindow);
   panelVisible = true;
   mainWindow.show();
   setPetsVisible(true);
@@ -404,10 +414,10 @@ function openCodexPanel() {
     codexWindow.setVisibleOnAllWorkspaces(true);
     codexWindow.loadFile(path.join(__dirname, 'codex', 'codex-panel.html'));
     codexWindow.on('closed', () => { codexWindow = null; });
-    placePanel(codexWindow, panelVisible ? mainWindow : null);
+    placePanel(codexWindow, panelVisible ? mainWindow : null, sysWindow);
     codexWindow.once('ready-to-show', () => codexWindow && codexWindow.show());
   } else if (!codexWindow.isVisible()) {
-    placePanel(codexWindow, panelVisible ? mainWindow : null);
+    placePanel(codexWindow, panelVisible ? mainWindow : null, sysWindow);
     codexWindow.show();
   } else {
     codexWindow.show();
@@ -438,12 +448,173 @@ ipcMain.on('codex:fit-height', (e, h) => {
   if (height !== b.height) codexWindow.setBounds({ ...b, height });
 });
 
+// ---- System Monitor: where this machine's load comes from (off by default) ----
+const SYS_W = 300;
+const SEV_COLOR = { normal: '#5fd0a8', warn: '#f2b54a', critical: '#ff5f57' };
+
+function startSystemMonitor() {
+  if (sysmon) return;
+  // Packaged, the helper sits in Resources (outside the asar, so it can run).
+  const helperPath = app.isPackaged ? path.join(process.resourcesPath, 'hud-sysmon')
+                                    : path.join(__dirname, 'sysmon', 'hud-sysmon');
+  sysmon = new SystemMonitor({
+    helperPath,
+    thermalState: () => { try { return powerMonitor.getCurrentThermalState(); } catch { return 'unknown'; } },
+    onUpdate: (s) => {
+      sysState = s;
+      if (notch) notch.update(notchPayload());
+      pushSystem();
+    },
+  });
+  sysmon.start();
+}
+
+function stopSystemMonitor() {
+  if (sysmon) sysmon.stop();
+  sysmon = null;
+  sysState = null;
+  foldSystemPanel();
+  if (notch) {
+    // A pinned card whose ring is gone would hold the notch open for nothing.
+    notch.setCardPinned('system', false);
+    notch.update(notchPayload());
+  }
+}
+
+function setSystemMonitor(on) {
+  const p = loadPrefs();
+  p.systemMonitor = on;
+  savePrefs(p);
+  if (on) startSystemMonitor(); else stopSystemMonitor();
+}
+
+function sysPayload() {
+  return { sys: sysState, scan: diskScan, platform: process.platform };
+}
+
+function pushSystem() {
+  if (sysWindow && !sysWindow.isDestroyed() && sysWindow.isVisible()) {
+    sysWindow.webContents.send('sys:update', sysPayload());
+  }
+}
+
+function openSystemPanel() {
+  if (!sysmon) startSystemMonitor();
+  if (notch) notch.fold();
+  if (!sysWindow || sysWindow.isDestroyed()) {
+    sysWindow = new BrowserWindow({
+      width: SYS_W, height: 420,
+      frame: false,
+      transparent: !IS_MAC,
+      backgroundColor: '#00000000',
+      alwaysOnTop: true,
+      resizable: false,
+      skipTaskbar: true,
+      hasShadow: true,
+      show: false,
+      ...(IS_MAC ? { roundedCorners: true, vibrancy: 'under-window', visualEffectState: 'active' } : {}),
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'sysmon', 'system-preload.js'),
+      },
+    });
+    sysWindow.setAlwaysOnTop(true, 'floating', 1);
+    sysWindow.setVisibleOnAllWorkspaces(true);
+    sysWindow.loadFile(path.join(__dirname, 'sysmon', 'system-panel.html'));
+    sysWindow.on('closed', () => { sysWindow = null; });
+    placePanel(sysWindow, panelVisible ? mainWindow : null, codexWindow);
+    sysWindow.once('ready-to-show', () => sysWindow && sysWindow.show());
+  } else if (!sysWindow.isVisible()) {
+    placePanel(sysWindow, panelVisible ? mainWindow : null, codexWindow);
+    sysWindow.show();
+    pushSystem();
+  } else {
+    sysWindow.show();
+  }
+}
+
+function foldSystemPanel() {
+  if (sysWindow && !sysWindow.isDestroyed()) sysWindow.hide();
+}
+
+async function runDiskScan() {
+  if (diskScan.running || !IS_MAC) return;
+  diskScan = { running: true, progress: 'Starting…', result: diskScan.result };
+  pushSystem();
+  try {
+    const result = await scanDisk((msg) => { diskScan.progress = msg; pushSystem(); });
+    diskScan = { running: false, progress: '', result };
+  } catch (e) {
+    console.log('[HUD] disk scan failed:', e.message);
+    diskScan = { running: false, progress: '', result: diskScan.result };
+  }
+  pushSystem();
+}
+
+/** The machine's ring and hover card, in the notch's provider shape. */
+function systemProvider(s) {
+  const v = s.verdict;
+  const names = (top) => (top || []).slice(0, 2).map((t) => `${t.name} ${t.text}`).join(' · ');
+  const heatWord = { nominal: 'normal', fair: 'warm', serious: 'hot', critical: 'very hot' };
+  const swap = s.mem.swapUsed;
+  const rows = [
+    { label: 'CPU', percent: s.cpu.pct, right: fmtPct(s.cpu.pct), color: SEV_COLOR[s.cpu.severity],
+      sub: names(s.cpu.top) || 'nothing busy' },
+    { label: 'Memory', percent: s.mem.pct, right: fmtPct(s.mem.pct), color: SEV_COLOR[s.mem.severity],
+      sub: [names(s.mem.top), swap > 2 * 1024 ** 3 ? 'swap ' + fmtMem(swap) : null].filter(Boolean).join(' · ') },
+    s.gpu && { label: 'GPU', percent: s.gpu.pct, right: fmtPct(s.gpu.pct), color: SEV_COLOR[s.gpu.severity],
+      sub: names(s.gpu.top) || 'idle' },
+    s.disk && { label: 'Disk', percent: s.disk.usedPct, right: `${fmtDisk(s.disk.free)} free`,
+      color: SEV_COLOR[s.disk.severity], sub: null },
+    s.heat && s.heat.chip && { label: 'Heat', percent: null, color: SEV_COLOR[s.heat.severity],
+      right: `chip ${Math.round(s.heat.chip)}°C · ${heatWord[s.heat.state] || s.heat.state}` },
+  ].filter(Boolean);
+  return {
+    id: 'system', label: IS_MAC ? 'This Mac' : 'This PC',
+    ring: Math.round(Math.max(0, Math.min(100, v.value || 0))),
+    ringText: v.ring,
+    tag: { cpu: 'CPU', mem: 'MEM', gpu: 'GPU', disk: 'DISK', heat: 'HEAT' }[v.resource],
+    color: SEV_COLOR[v.severity],
+    headline: v.text, severity: v.severity,
+    stale: false, rows,
+  };
+}
+
+ipcMain.on('sys:get-data', (e) => e.reply('sys:update', sysPayload()));
+ipcMain.on('sys:refresh', () => { if (sysmon) sysmon.tick(); });
+ipcMain.on('sys:fold', () => foldSystemPanel());
+ipcMain.on('sys:context-menu', () => showContextMenu(sysWindow));
+ipcMain.on('sys:scan-disk', () => runDiskScan());
+ipcMain.on('sys:reveal', (e, p) => {
+  // Only folders the last scan reported, never an arbitrary path.
+  const ok = diskScan.result && diskScan.result.items.some((i) => i.path === p);
+  if (ok) shell.showItemInFolder(p);
+});
+ipcMain.on('sys:activity-monitor', () => {
+  if (IS_MAC) execFile('open', ['-a', 'Activity Monitor'], () => {});
+  else if (process.platform === 'win32') {
+    try { spawn('taskmgr.exe', [], { detached: true, stdio: 'ignore' }).unref(); } catch {}
+  }
+});
+ipcMain.on('sys:fit-height', (e, h) => {
+  if (!sysWindow || sysWindow.isDestroyed()) return;
+  const b = sysWindow.getBounds();
+  const wa = screen.getDisplayMatching(b).workArea;
+  const height = Math.max(120, Math.min(wa.height - 16, Math.round(h || 0)));
+  if (height === b.height) return;
+  // Taller than the room below it: move up rather than run off the screen.
+  const y = Math.max(wa.y + 8, Math.min(b.y, wa.y + wa.height - height - 8));
+  sysWindow.setBounds({ ...b, y, height });
+});
+
 function initNotch() {
   const prefs = loadPrefs();
   notch = new NotchWindow({
     prefs: prefs.notch || {},
     onPrefs: (n) => { const p = loadPrefs(); p.notch = { ...(p.notch || {}), ...n }; savePrefs(p); },
-    onActivate: (id) => (id === 'codex' ? openCodexPanel() : openPanel()),
+    onActivate: (id) => (id === 'codex' ? openCodexPanel()
+                       : id === 'system' ? openSystemPanel() : openPanel()),
     onContextMenu: () => showContextMenu(notch.window),
   });
   screen.on('display-metrics-changed', () => notch && notch.reseat());
@@ -668,6 +839,7 @@ function showContextMenu(fromWindow) {
   }));
 
   const codexOpen = codexWindow && !codexWindow.isDestroyed() && codexWindow.isVisible();
+  const sysOpen = sysWindow && !sysWindow.isDestroyed() && sysWindow.isVisible();
   const template = [
     ...updateMenuHead(),
     panelVisible
@@ -676,6 +848,16 @@ function showContextMenu(fromWindow) {
     ...(usageState.codex ? [codexOpen
       ? { label: 'Fold Codex Panel', click: () => foldCodexPanel() }
       : { label: 'Open Codex Panel', click: () => openCodexPanel() }] : []),
+    ...(sysmon ? [sysOpen
+      ? { label: 'Fold System Panel', click: () => foldSystemPanel() }
+      : { label: 'Open System Panel', click: () => openSystemPanel() }] : []),
+    { type: 'separator' },
+    {
+      label: 'System Monitor (CPU, Memory, Disk)',
+      type: 'checkbox',
+      checked: !!sysmon,
+      click: (item) => setSystemMonitor(item.checked),
+    },
     { type: 'separator' },
     ...(notch ? [
       { label: 'Pin Notch', type: 'checkbox', checked: notch.isPinned(),
@@ -871,6 +1053,7 @@ function notchPayload() {
              row(windowLabel(c.secondary, 'Weekly'), c.secondary)].filter(Boolean),
     });
   }
+  if (sysState) providers.push(systemProvider(sysState));
   return { providers };
 }
 
@@ -1109,6 +1292,7 @@ app.whenReady().then(() => {
   createWindow();
   initPet();
   initNotch();
+  if (prefs.systemMonitor === true) startSystemMonitor();
   startUsageService();
   initUpdater();
 });

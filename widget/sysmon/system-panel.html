@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<!-- HUD for Claude · github.com/suiyang-meta/claude-hud · (c) 2026 Sui1491 · MIT -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    /* The machine's own panel: black ground with cool teal glows, so it never
+       reads as a third provider. Colour is spent on one thing only — how bad a
+       reading is: teal (fine), amber (under pressure), red (critical). */
+    :root {
+      --c1: #8ce6cc;
+      --c2: #3fc4a6;
+      --grad: linear-gradient(90deg, var(--c1), var(--c2));
+      --warn: #f2b54a;
+      --crit: #ff5f57;
+      --text: #ecf5f2;
+      --mid:  rgba(228,242,237,0.56);
+      --low:  rgba(228,242,237,0.30);
+      --hair: rgba(140,230,204,0.10);
+      --track:rgba(140,230,204,0.10);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-user-select:none; }
+    html, body { width:100%; height:100%; overflow:hidden; background:transparent;
+      font-family:-apple-system,'SF Pro Text','Segoe UI Variable Text','Segoe UI',system-ui,sans-serif;
+      -webkit-font-smoothing:antialiased; }
+    .num { font-family:'SF Mono',ui-monospace,'Cascadia Mono',Consolas,Menlo,monospace;
+           font-variant-numeric:tabular-nums; }
+
+    #card {
+      position:absolute; inset:0; border-radius:10px; overflow:hidden;
+      -webkit-app-region:drag;
+      background:
+        radial-gradient(78% 50% at 110% 122%, rgba(63,196,166,0.42) 0%, rgba(63,196,166,0.10) 44%, transparent 68%),
+        radial-gradient(80% 50% at -8% -14%, rgba(110,200,230,0.24) 0%, rgba(110,200,230,0.05) 48%, transparent 72%),
+        rgba(3,5,5,0.975);
+      box-shadow: inset 0 0 0 1px rgba(140,230,204,0.07);
+    }
+    #card::after {
+      content:''; position:absolute; inset:0; pointer-events:none;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size:140px 140px; opacity:.22; mix-blend-mode:overlay;
+    }
+    #scroll { position:relative; z-index:1; height:100%; overflow-y:auto; }
+    #scroll::-webkit-scrollbar { width:0; }
+    #inner { padding:13px 15px 12px; }
+
+    .ctl { position:absolute; top:12px; right:13px; z-index:3; display:flex; gap:9px;
+           align-items:center; -webkit-app-region:no-drag; }
+    .ic { width:11px; height:11px; cursor:pointer; color:var(--text); opacity:.22;
+          transition:opacity .15s; }
+    .ic:hover { opacity:.7; }
+    .ic svg { width:100%; height:100%; display:block; }
+    .ic.spin { opacity:.6; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    .hdr { display:flex; align-items:center; gap:7px; margin-bottom:10px; padding-right:44px; }
+    .hdr svg { width:15px; height:15px; flex:none; }
+    .name { font-size:12px; font-weight:600; color:var(--text); letter-spacing:-.1px; }
+
+    /* The verdict: the reason this panel exists. */
+    .verdict { display:flex; gap:7px; align-items:flex-start; font-size:11px; font-weight:600;
+               line-height:1.35; color:var(--text); margin-bottom:14px; }
+    .verdict i { width:7px; height:7px; border-radius:50%; flex:none; margin-top:4px; background:var(--c2); }
+    .verdict.warn i { background:var(--warn); } .verdict.critical i { background:var(--crit); }
+    .verdict.warn { color:var(--warn); } .verdict.critical { color:var(--crit); }
+
+    .sec { margin-bottom:13px; }
+    .row-top { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; }
+    .lbl { font-size:10px; color:var(--mid); }
+    .val { font-size:16px; font-weight:600; color:var(--text); letter-spacing:-.4px; }
+    .val small { font-size:9px; font-weight:500; color:var(--mid); letter-spacing:0; margin-left:4px; }
+    .val.warn { color:var(--warn); } .val.critical { color:var(--crit); }
+    .trk { height:4px; background:var(--track); border-radius:2px; overflow:hidden; }
+    .fill { height:100%; border-radius:2px; background:var(--grad);
+            transition: width .7s cubic-bezier(.4,0,.2,1); }
+    .fill.warn { background:var(--warn); } .fill.critical { background:var(--crit); }
+    .sub { font-size:8.5px; color:var(--low); margin-top:4px; }
+    .sub b { font-weight:500; color:var(--warn); }
+
+    /* Who is behind a reading. Each row opens Activity Monitor. */
+    .who { margin-top:6px; -webkit-app-region:no-drag; }
+    .w { display:flex; justify-content:space-between; gap:8px; align-items:baseline;
+         padding:3px 5px; margin:0 -5px; border-radius:5px; cursor:pointer; }
+    .w:hover { background:rgba(140,230,204,0.07); }
+    .wn { font-size:10px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .wn em { font-style:normal; color:var(--low); font-size:8.5px; margin-left:5px; }
+    .wv { font-size:9.5px; color:var(--mid); flex:none; }
+    .none { font-size:9px; color:var(--low); padding:3px 0; }
+
+    .heat { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:9.5px; color:var(--mid); }
+    .heat b { font-weight:600; color:var(--text); }
+    .heat .warn { color:var(--warn); } .heat .critical { color:var(--crit); }
+
+    .scan { margin-top:8px; -webkit-app-region:no-drag; }
+    .btn { display:inline-block; font-size:9.5px; font-weight:600; color:var(--c1); cursor:pointer;
+           border:1px solid rgba(140,230,204,.28); border-radius:6px; padding:4px 8px; }
+    .btn:hover { background:rgba(140,230,204,0.08); }
+    .note { font-size:8.5px; color:var(--low); line-height:1.5; margin-top:6px; }
+    .note a { color:var(--mid); cursor:pointer; text-decoration:underline; text-decoration-color:rgba(228,242,237,.25); }
+    .busy { font-size:9.5px; color:var(--mid); display:flex; align-items:center; gap:6px; }
+    .busy i { width:8px; height:8px; border-radius:50%; border:1.5px solid var(--c2);
+              border-right-color:transparent; animation:spin .8s linear infinite; }
+
+    .hair { height:1px; background:var(--hair); margin:4px 0 9px; }
+    .foot { display:flex; justify-content:space-between; font-size:8.5px; color:var(--low); }
+    .foot .live { display:flex; align-items:center; gap:5px; }
+    .dot { width:5px; height:5px; border-radius:50%; background:var(--c2); }
+    .dot.off { background:var(--low); }
+    .foot a { color:var(--low); cursor:pointer; text-decoration:none; -webkit-app-region:no-drag; }
+    .foot a:hover { color:var(--c1); }
+    .empty { font-size:10px; color:var(--mid); line-height:1.6; padding:6px 0 12px; }
+  </style>
+</head>
+<body>
+  <div id="card">
+    <div class="ctl">
+      <div class="ic" id="btnRefresh" title="Refresh now">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.5 12a8.5 8.5 0 1 1-2.49-6.01"/><path d="M20.5 3.5v5h-5"/></svg>
+      </div>
+      <div class="ic" id="btnClose" title="Fold to edge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8"
+             stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </div>
+    </div>
+    <div id="scroll"><div id="inner"></div></div>
+  </div>
+
+  <script>
+    const GLYPH = `<svg viewBox="0 0 24 24" fill="none" stroke="#8ce6cc" stroke-width="2.4"
+      stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-6 5 12 2.5-6h4"/></svg>`;
+    let st = { sys: null, scan: { running: false }, platform: '' };
+
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const GiB = 1024 ** 3;
+    const mem = (b) => (b >= GiB ? (b / GiB).toFixed(1) + ' GB' : Math.round(b / 1024 ** 2) + ' MB');
+    const disk = (b) => (b >= 1e12 ? (b / 1e12).toFixed(2) + ' TB' : b >= 10e9 ? Math.round(b / 1e9) + ' GB'
+                         : b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : Math.round(b / 1e6) + ' MB');
+    const pct = (p) => (p >= 10 ? Math.round(p) : p.toFixed(1)) + '%';
+
+    function who(list, empty) {
+      if (!list || !list.length) return `<div class="who"><div class="none">${empty}</div></div>`;
+      return `<div class="who">${list.map((t) => `<div class="w act" title="${esc(t.detail || t.name)} — open Activity Monitor">
+        <span class="wn">${esc(t.name)}${t.detail ? `<em>${esc(t.detail)}</em>` : ''}</span>
+        <span class="wv num">${esc(t.text)}</span></div>`).join('')}</div>`;
+    }
+    function bar(p, sev) {
+      return `<div class="trk"><div class="fill ${sev}" style="width:${Math.max(0, Math.min(100, p))}%"></div></div>`;
+    }
+    function section(label, r, extra, empty) {
+      return `<div class="sec">
+        <div class="row-top"><span class="lbl">${label}</span>
+          <span class="val num ${r.severity}">${pct(r.pct)}</span></div>
+        ${bar(r.pct, r.severity)}
+        ${extra ? `<div class="sub">${extra}</div>` : ''}
+        ${who(r.top, empty)}
+      </div>`;
+    }
+
+    function scanBlock() {
+      const sc = st.scan || {};
+      if (sc.running) return `<div class="scan"><div class="busy"><i></i>${esc(sc.progress || 'Scanning…')}</div></div>`;
+      const r = sc.result;
+      if (!r) {
+        return `<div class="scan"><span class="btn" id="scanBtn">Find what’s using space</span>
+          <div class="note">Measures code folders (node_modules, .next, dist…), caches, Downloads and
+          the like — about half a minute. macOS may ask once to allow Documents and Downloads.
+          Nothing is deleted.</div></div>`;
+      }
+      const rows = r.items.map((i) => `<div class="w dir" data-path="${esc(i.path)}" title="${esc(i.path)} — show in Finder">
+        <span class="wn">${esc(i.label)}<em>${esc(i.detail)}</em></span>
+        <span class="wv num">${disk(i.bytes)}</span></div>`).join('');
+      const at = new Date(r.at).toTimeString().slice(0, 5);
+      return `<div class="scan"><div class="who">${rows || '<div class="none">Nothing over 100 MB in the usual places.</div>'}</div>
+        <div class="note">These account for ${disk(r.measured)}${r.used ? ` of the ${disk(r.used)} in use` : ''};
+        the rest is apps, the system, photos, mail and other folders.
+        ${r.unreadable.length ? `<br>Could not read: ${esc(r.unreadable.join(', '))} (needs Full Disk Access).` : ''}
+        <br>Scanned ${at} · <a id="scanBtn">scan again</a></div></div>`;
+    }
+
+    function render() {
+      const s = st.sys;
+      const mac = st.platform === 'darwin';
+      const inner = document.getElementById('inner');
+      let html = `<div class="hdr">${GLYPH}<span class="name">${mac ? 'This Mac' : 'This PC'}</span></div>`;
+      if (!s) {
+        html += `<div class="empty">Reading this machine…</div>`;
+      } else {
+        const v = s.verdict;
+        html += `<div class="verdict ${v.severity}"><i></i><span>${esc(v.text)}</span></div>`;
+        html += section('CPU', s.cpu, `${s.cores} cores`, 'Nothing busy');
+        const swap = s.mem.swapUsed;
+        const memExtra = [s.mem.pressure !== 'normal'
+            ? `<b>pressure ${s.mem.pressure === 'critical' ? 'critical' : 'high'}</b>` : 'pressure normal',
+          swap != null ? (swap > 2 * GiB ? `<b>swap ${mem(swap)}</b>` : `swap ${mem(swap)}`) : null,
+          `${mem(s.mem.total)} total`].filter(Boolean).join(' · ');
+        html += section('Memory', s.mem, memExtra, '—');
+        if (s.gpu) html += section('GPU', s.gpu, null, 'GPU idle');
+        if (s.disk) {
+          const d = s.disk;
+          html += `<div class="sec">
+            <div class="row-top"><span class="lbl">Disk</span>
+              <span class="val num ${d.severity}">${pct(d.usedPct)}<small>${disk(d.free)} free</small></span></div>
+            ${bar(d.usedPct, d.severity)}
+            <div class="sub">${disk(d.total)} total</div>
+            ${mac ? scanBlock() : ''}</div>`;
+        }
+        if (s.io && s.io.top.length) {
+          html += `<div class="sec"><div class="row-top"><span class="lbl">Reading and writing the disk</span></div>
+            ${who(s.io.top, '')}</div>`;
+        }
+        if (s.heat) {
+          const h = s.heat, t = (x) => (x == null ? null : Math.round(x) + '°C');
+          const state = { nominal: 'normal', fair: 'warm', serious: 'hot — slowing down',
+                          critical: 'very hot — slowing down', unknown: 'unknown' }[h.state] || h.state;
+          html += `<div class="sec"><div class="row-top"><span class="lbl">Heat</span></div>
+            <div class="heat">${t(h.chip) ? `<span>chip <b>${t(h.chip)}</b></span>` : ''}
+              ${t(h.ssd) ? `<span>SSD <b>${t(h.ssd)}</b></span>` : ''}
+              ${t(h.battery) ? `<span>battery <b>${t(h.battery)}</b></span>` : ''}
+              <span class="${h.severity}">${esc(state)}</span></div></div>`;
+        }
+      }
+      const asOf = s ? new Date(s.at).toTimeString().slice(0, 8) : null;
+      html += `<div class="hair"></div><div class="foot">
+        <span class="live"><span class="dot ${s ? '' : 'off'}"></span>${asOf ? 'updated ' + asOf : 'waiting'}</span>
+        <a id="lnk">${mac ? 'Activity Monitor' : 'Task Manager'} ↗</a></div>`;
+      inner.innerHTML = html;
+      window.sysAPI.fitHeight(Math.ceil(inner.offsetHeight));
+    }
+
+    // One listener for the whole panel: the rows are redrawn every tick.
+    document.getElementById('inner').addEventListener('click', (e) => {
+      const t = e.target;
+      if (t.closest('#scanBtn')) return window.sysAPI.scanDisk();
+      if (t.closest('#lnk') || t.closest('.w.act')) return window.sysAPI.openActivityMonitor();
+      const d = t.closest('.w.dir');
+      if (d) window.sysAPI.reveal(d.dataset.path);
+    });
+    const btnRefresh = document.getElementById('btnRefresh');
+    btnRefresh.addEventListener('click', () => {
+      btnRefresh.classList.add('spin');
+      window.sysAPI.refresh();
+      setTimeout(() => btnRefresh.classList.remove('spin'), 900);
+    });
+    document.getElementById('btnClose').addEventListener('click', () => window.sysAPI.fold());
+    document.addEventListener('contextmenu', (e) => { e.preventDefault(); window.sysAPI.contextMenu(); });
+    window.sysAPI.onUpdate((p) => { st = { ...st, ...p }; render(); });
+    window.sysAPI.getData();
+  </script>
+</body>
+</html>

@@ -35,10 +35,14 @@ rm -rf dist
 # Architecture flags apply to every target in one invocation, so building both
 # platforms at once would also produce an arm64 Windows zip and an x64 dmg that
 # nobody asked for. Two passes keeps each platform to the arch that matters.
+# The Mac build carries the system-monitor helper, compiled fresh from its
+# source (it is not in git); electron-builder fails if it is missing.
 case "$WANT" in
-  mac)  npx electron-builder --mac dmg --arm64 >/tmp/hud-package.log 2>&1 ;;
+  mac)  node sysmon/build.js
+        npx electron-builder --mac dmg --arm64 >/tmp/hud-package.log 2>&1 ;;
   win)  npx electron-builder --win zip --x64   >/tmp/hud-package.log 2>&1 ;;
-  both) npx electron-builder --mac dmg --arm64 >/tmp/hud-package.log 2>&1
+  both) node sysmon/build.js
+        npx electron-builder --mac dmg --arm64 >/tmp/hud-package.log 2>&1
         npx electron-builder --win zip --x64  >>/tmp/hud-package.log 2>&1 ;;
   *) echo "usage: $0 [mac|win|both] [--skip-build]"; exit 2 ;;
 esac

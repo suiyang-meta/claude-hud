@@ -9,9 +9,10 @@
   },
   "license": "MIT",
   "scripts": {
+    "prestart": "node sysmon/build.js",
     "start": "electron .",
-    "build": "electron-builder --mac dmg --arm64 --win nsis --x64",
-    "build:mac": "electron-builder --mac dmg --arm64",
+    "build": "node sysmon/build.js && electron-builder --mac dmg --arm64 --win nsis --x64",
+    "build:mac": "node sysmon/build.js && electron-builder --mac dmg --arm64",
     "build:win": "electron-builder --win nsis --x64"
   },
   "dependencies": {
@@ -34,6 +35,10 @@
       "notch/**/*",
       "codex/**/*",
       "update/**/*",
+      "sysmon/**/*",
+      "!sysmon/hud-sysmon",
+      "!sysmon/*.c",
+      "!sysmon/build.js",
       "assets/**/*",
       "node_modules/**/*"
     ],
@@ -47,6 +52,12 @@
       "identity": null,
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
+      "extraResources": [
+        {
+          "from": "sysmon/hud-sysmon",
+          "to": "hud-sysmon"
+        }
+      ],
       "extendInfo": {
         "NSHumanReadableCopyright": "(c) 2026 Sui1491 — github.com/suiyang-meta/claude-hud — MIT",
         "HUDOriginRepository": "https://github.com/suiyang-meta/claude-hud",

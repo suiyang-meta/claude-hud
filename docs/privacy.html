@@ -71,6 +71,20 @@ request that carries nothing about you.</p>
       (<code>~/.claude/projects/</code>) — but only each API call's timestamp, model
       name, and token counts. <strong>The text of your prompts and Claude's replies is
       never read, stored, or transmitted.</strong></li>
+  <li><strong>System readings — only if you turn on System Monitor</strong> (right-click →
+      System Monitor; it is off until you do). CPU, memory, GPU and disk space, and on a
+      Mac the chip, SSD and battery temperatures. To say what is behind those numbers, it
+      also reads the list of running programs — each one's name, CPU and memory use, disk
+      activity and GPU time — and, for Claude Code sessions and language runtimes such as
+      <code>node</code> or <code>python</code>, their command line and working folder, so
+      a dev server can be named after its project. Read every few seconds while it is on,
+      shown on your screen, and kept only in memory: never written to a file, never sent
+      anywhere.</li>
+  <li><strong>Folder sizes — only when you click "Find what's using space"</strong>
+      (macOS). The app measures how much room some folders take up: build output and
+      dependencies in your code folders (such as <code>node_modules</code>), caches, Trash,
+      Downloads, Xcode, Docker and the like. It reads their sizes only, never the contents
+      of the files in them, and never deletes anything.</li>
 </ul>
 
 <h2>What the desktop app writes</h2>
