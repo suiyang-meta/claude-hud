@@ -19,7 +19,8 @@
 # The installers go up before latest.json, so no copy is ever told about a file
 # that is not there yet. Afterwards it reads latest.json back through the same
 # public URL the app uses, verifies it again, and checks each file is served
-# whole.
+# whole — and only once all of that and the GitHub notes have gone through does
+# it move the stage to the Trash. A run that stops part-way keeps it for a rerun.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -87,4 +88,10 @@ NOTES="$SECTION
 Already on 3.7.0 or later? The app updates itself: right-click → Restart to Update."
 gh release create "v$VERSION" -R "$REPO" --target "$(git rev-parse HEAD)" \
   --title "HUD for Claude v$VERSION" --notes "$NOTES"
+
+# The stage has done its job: the update files are on R2, verified as served,
+# and the two bundles for Gumroad are still on the Desktop. Left here it would
+# hold a few hundred MB of copies until the next release.
+TRASH="$HOME/.Trash/hud-for-claude-release-$VERSION-$(date +%Y%m%d-%H%M%S)"
+mv "$STAGE" "$TRASH" && echo "  stage moved to the Trash ($(basename "$TRASH"))"
 echo "OK — v$VERSION is live; every copy from 3.7.0 on will find it on its next check"
