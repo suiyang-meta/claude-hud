@@ -67,7 +67,7 @@
     body.ready.open #mat { transition: clip-path 300ms var(--out); }
 
     /* ---- folded: one hairline meter per provider, filling from the bottom ---- */
-    #mini { position:fixed; right:0; width:9px; top:calc(50% - 16px); height:32px;
+    #mini { position:fixed; right:0; width:9px; top:calc(var(--cy, 50%) - 16px); height:32px;
             display:flex; gap:3px; justify-content:center; padding-left:1px;
             transition: opacity 160ms ease 200ms; }
     body.left #mini { right:auto; left:0; padding-left:0; padding-right:1px; }
@@ -250,15 +250,22 @@
       return Math.round(2 * flare(GEO.open).yE + (n - 1) * ROW_H + LABEL_DROP);
     }
     function notchHeight() { return geoState === 'open' ? openHeight() : FOLD_H; }
+    /* Where the notch's centre sits in this window. NotchWindow.js keeps the
+       window on-screen, so near the top or bottom of a screen the notch is not
+       at the window's middle; it says where it is (cy) and the page draws there,
+       which is exactly where its hover test looks. */
+    let cy = null;
+    function centreY() { return cy != null ? cy : innerHeight / 2; }
     /* The window is the same size folded and open (NotchWindow.js), so folding
        and unfolding are purely this clip-path animating — nothing is resized
        mid-animation, which is what used to flash a frame of the old shape. */
     function drawShape() {
       const onh = Math.min(innerHeight, openHeight());
-      const oy = Math.round((innerHeight - onh) / 2);
+      const oy = Math.round(centreY() - onh / 2);
       const nh = Math.min(innerHeight, notchHeight());
-      const ny = Math.round((innerHeight - nh) / 2);
+      const ny = Math.round(centreY() - nh / 2);
       const root = document.documentElement.style;
+      root.setProperty('--cy', centreY() + 'px');
       root.setProperty('--oy', oy + 'px');
       root.setProperty('--nh', onh + 'px');
       // Glows sit on the open notch's box in both states, so they never jump.
@@ -384,7 +391,8 @@
 
     /* Cards sit beside their own ring. Two cards are much taller than the gap
        between rings, so they are stacked downwards from the first.
-       The window is sized once for the worst case — every card showing — and
+       The window is sized once for the worst case — every card showing, against
+       the open notch — and
        never resized while you hover. Resizing it per card is what made the
        notch jump (and the hover flicker) when moving between the two rings:
        a taller window re-centres the notch under the pointer. The extra room
@@ -404,24 +412,38 @@
         minTop = Math.min(minTop, top); maxBottom = Math.max(maxBottom, top + h);
         out.push({ p, el, top });
       }
-      return { out, needH: out.length ? Math.ceil(2 * Math.max(-minTop, maxBottom) + 8) : 0 };
+      // How far the stack reaches above and below the notch's centre.
+      return { out, up: out.length ? Math.ceil(Math.max(0, -minTop) + 4) : 0,
+               down: out.length ? Math.ceil(Math.max(0, maxBottom) + 4) : 0 };
     }
     function layoutCards() {
       const open = geoState === 'open';
       const want = open ? providers.filter(p => pinnedCards.has(p.id) || p.id === hoverId) : [];
-      const nh = notchHeight();
-      const worst = stack(providers, nh).needH;
+      // Always against the open notch: cards only show while it is open, and
+      // sizing against the folded one resized the window on every fold.
+      const nh = openHeight();
+      const worst = stack(providers, nh);
       const { out } = stack(want, nh);
       const roomy = true;                        // the window always has card room
       for (const el of document.querySelectorAll('.card')) {
         if (!want.some(p => p.id === el.dataset.id)) el.classList.remove('on');
       }
+      // A screen too short for the whole stack clips the window: slide the
+      // cards together so the last one still ends inside it.
+      const c = centreY();
+      let shift = 0;
+      if (out.length) {
+        const lo = Math.min(...out.map(o => c + o.top));
+        const hi = Math.max(...out.map(o => c + o.top + o.el.offsetHeight));
+        if (hi > innerHeight - 4) shift = innerHeight - 4 - hi;
+        if (lo + shift < 4) shift = 4 - lo;
+      }
       for (const { el, top } of out) {
-        el.style.top = Math.round(innerHeight / 2 + top) + 'px';
+        el.style.top = Math.round(c + top + shift) + 'px';
         el.classList.toggle('on', roomy);
       }
-      const ask = JSON.stringify({ cards: out.length > 0, worst });
-      if (ask !== lastAsk) { lastAsk = ask; window.notchAPI.layout(out.length > 0, worst); }
+      const ask = JSON.stringify({ cards: out.length > 0, up: worst.up, down: worst.down });
+      if (ask !== lastAsk) { lastAsk = ask; window.notchAPI.layout(out.length > 0, worst.up, worst.down); }
     }
     function hideSoon() {
       if (dragged) return;              // the card is the drag handle right now
@@ -430,6 +452,7 @@
     }
 
     window.notchAPI.onState((m) => {
+      if (m.cy != null && m.cy !== cy) { cy = m.cy; drawShape(); }
       document.body.classList.toggle('left', m.side === 'left');
       pinned = !!m.pinned;
       pinnedCards = new Set(m.cards || []);

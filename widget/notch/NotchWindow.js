@@ -66,7 +66,9 @@ class NotchWindow {
     this.state = 'folded';           // 'folded' | 'open' | 'hidden'
     this.rows = 1;
     this.cardsShown = false;
-    this.cardsNeedH = 0;
+    this.cardsUp = 0;                // px the cards reach above / below the notch's centre
+    this.cardsDown = 0;
+    this.cy = null;                  // the notch's centre, in window pixels, as last sent
     this.solid = true;               // false = clicks pass through to what is underneath
     this.dragging = false;
     this.lastPayload = null;
@@ -77,8 +79,10 @@ class NotchWindow {
   }
 
   _create() {
+    const { cy, ...frame } = this._bounds();
+    this.cy = cy;
     this.window = new BrowserWindow({
-      ...this._bounds('folded'),
+      ...frame,
       frame: false,
       transparent: true,
       backgroundColor: '#00000000',
@@ -121,10 +125,11 @@ class NotchWindow {
       if (this.onActivate) this.onActivate(id);
     });
     ipcMain.on('notch:context-menu', (e) => { if (mine(e)) this.onContextMenu && this.onContextMenu(); });
-    ipcMain.on('notch:layout', (e, cards, needH) => {
+    ipcMain.on('notch:layout', (e, cards, up, down) => {
       if (!mine(e)) return;
       this.cardsShown = !!cards && this.state === 'open';
-      this.cardsNeedH = Math.max(0, Math.round(needH || 0));
+      this.cardsUp = Math.max(0, Math.round(up || 0));
+      this.cardsDown = Math.max(0, Math.round(down || 0));
       this._apply();
     });
     ipcMain.on('notch:pin', (e, target, id, on) => {
@@ -193,9 +198,12 @@ class NotchWindow {
   /* One size for every state: room for the open notch and every card. Folding
      and unfolding are then animations inside a still window. Resizing it —
      per state, or per hovered card — is what made the notch flash a frame of
-     its old shape and jump under the pointer. The empty part is click-through. */
-  _size() {
-    return { w: OPEN_W + CARD_W, h: Math.max(this._notchH(), this.cardsNeedH, FOLD_H) };
+     its old shape and jump under the pointer. The empty part is click-through.
+     The cards hang below the first ring, so the room above and below the
+     notch's centre is sized separately rather than mirrored. */
+  _extent() {
+    const half = Math.ceil(Math.max(this._notchH(), FOLD_H) / 2);
+    return { up: Math.max(half, this.cardsUp), down: Math.max(half, this.cardsDown) };
   }
 
   /** The folded sliver, in screen coordinates. */
@@ -222,17 +230,31 @@ class NotchWindow {
     return Math.max(wa.y + half, Math.min(wa.y + wa.height - half, Math.round(c)));
   }
 
-  _bounds(state) {
+  /** The window's frame, and where the notch's centre falls inside it (cy).
+   *
+   *  The window is kept on-screen here rather than left to the OS: macOS moves
+   *  a window that pokes above the menu bar back down on its own, and the page
+   *  used to assume the notch sat at the window's middle — so after that move
+   *  the notch was drawn lower than where the hover test looked for it, and
+   *  hovering it did nothing. Now the page draws at the cy it is given. */
+  _bounds() {
     const wa = this._wa();
-    const { w, h } = this._size(state);
+    const w = OPEN_W + CARD_W;
     const c = this._clampCenter(this._center());
+    const { up, down } = this._extent();
+    const h = Math.min(wa.height, up + down);
+    const y = Math.max(wa.y, Math.min(wa.y + wa.height - h, c - up));
     const x = this.side === 'left' ? wa.x : wa.x + wa.width - w;
-    return { x, y: Math.round(c - h / 2), width: w, height: h };
+    return { x, y: Math.round(y), width: w, height: Math.round(h), cy: Math.round(c - Math.round(y)) };
   }
 
   _apply() {
     if (!this.window || this.window.isDestroyed() || this.state === 'hidden') return;
-    this.window.setBounds(this._bounds(this.state));
+    const { cy, ...frame } = this._bounds();
+    // The page learns the new centre first, so it never draws a frame of the
+    // notch at the old centre inside the new window.
+    if (cy !== this.cy) { this.cy = cy; this._sendState(); }
+    this.window.setBounds(frame);
   }
 
   _send(ch, v) {
@@ -241,7 +263,7 @@ class NotchWindow {
 
   _sendState() {
     if (!this.window || this.window.isDestroyed()) return;
-    this._send('notch:state', { state: this.state, side: this.side,
+    this._send('notch:state', { state: this.state, side: this.side, cy: this.cy,
                                 pinned: this.pinned, cards: this.pinnedCards.slice() });
   }
 
@@ -298,9 +320,9 @@ class NotchWindow {
     // "Inside" is the notch itself, plus the card column only while a card is
     // showing — the window is wider than both, and its empty part must not
     // hold the notch open.
-    const nh = this._notchH(), cy = b.y + b.height / 2;
+    const nh = this._notchH(), c = this._clampCenter(this._center());
     const nx = this.side === 'left' ? b.x : b.x + b.width - OPEN_W;
-    const inNotch = p.x >= nx && p.x <= nx + OPEN_W && p.y >= cy - nh / 2 && p.y <= cy + nh / 2;
+    const inNotch = p.x >= nx && p.x <= nx + OPEN_W && p.y >= c - nh / 2 && p.y <= c + nh / 2;
     const inWindow = p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height;
     if (inNotch || (this.cardsShown && inWindow)) { this._outsideSince = 0; return; }
     if (!this._outsideSince) this._outsideSince = Date.now();
