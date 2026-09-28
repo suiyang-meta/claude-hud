@@ -173,6 +173,14 @@ Codex 面板只有两条额度（5 小时、每周）和它们的重置时间；
 
 **"Windows protected your PC" 蓝窗** → 第 2 步，点 More info → Run anyway。
 
+**Windows Defender 把它当成威胁、隔离掉了** → 跟 SmartScreen 同一个原因：没有代码签名的小程序。**它不是病毒。**
+
+1. 打开 **Windows 安全中心（Windows Security）→ 病毒和威胁防护（Virus & threat protection）→ 保护历史记录（Protection history）**
+2. 找到 HUD for Claude 那一条 → **操作（Actions）→ 还原（Restore）**
+3. 不想以后每次都被扫：**病毒和威胁防护 → 管理设置（Manage settings）→ 排除项（Exclusions）→ 添加排除项（Add an exclusion）→ 文件夹（Folder）**，选 `%LOCALAPPDATA%\Programs\HUD for Claude`。自动更新会换掉里面的文件，但文件夹位置不变，排除项照样有效。
+
+如果被拦的是**自动更新下载的文件**：更新会失败，旧版照常用，并弹窗说原因。把 `%LOCALAPPDATA%\Programs\HUD for Claude.update` 也加进排除项，再右键 → `Updates` → `Check Now…` 重试即可。
+
 **配额两条一直空白，或底下写 Sign-in expired** → 那是**命令行版 Claude Code** 的登录没了，跟你桌面上开着的 Claude 无关 —— 它们各自揣着另一套登录，开着桌面 app 不会让这条活过来。跑第 0 步那条命令确认，然后**右键 HUD → `Sign in to Claude Code…`**，会开一个终端直接跑登录命令。
 
 **数字全是 0** → 这台机器还没用过 Claude Code。
@@ -182,6 +190,31 @@ Codex 面板只有两条额度（5 小时、每周）和它们的重置时间；
 **窗口不见了** → 平时它收在屏幕边缘，只剩一条细缝，把鼠标移到右边缘（或左边缘，如果你换过边）碰一下就会展开。完整面板按红点会收回边缘，这不是关掉。
 
 **notch 在 Windows 上的表现** → notch 的收折、pin、左右边这批新功能跟 Mac 共用同一份代码，但**只在 Mac 上实际测过**。Windows 上如果展开动画、点击穿透（notch 旁边的透明区域应该可以点到后面的东西）有异常，请回报。
+
+---
+
+## 完整卸载
+
+1. 右键 HUD → 取消勾选 **`Launch at Login`**。开机自启是 HUD 自己登记的，由它自己撤掉最干净；忘了这一步也没关系，到 **任务管理器（Task Manager）→ 启动应用（Startup apps）** 里把它停用。
+2. 右键 → **`Quit HUD for Claude`**（红点只是收回边缘，不是退出）。
+3. 在 PowerShell 里删掉程序、自动更新的暂存和两个快捷方式：
+
+```powershell
+Remove-Item "$env:LOCALAPPDATA\Programs\HUD for Claude" -Recurse -Force
+Remove-Item "$env:LOCALAPPDATA\Programs\HUD for Claude.update" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\HUD for Claude.lnk" -ErrorAction SilentlyContinue
+Remove-Item (Join-Path ([Environment]::GetFolderPath('Desktop')) 'HUD for Claude.lnk') -ErrorAction SilentlyContinue
+```
+
+4. 设定和用量数据（设定、pin、宠物、lifetime 累计、更新记录）在 `%APPDATA%\claude-hud`。**只是想重装的话别删它** —— lifetime 是 HUD 自己一笔一笔记下来的，Claude Code 只留 30 天，删了就回不来。确定不要了再删：
+
+```powershell
+Remove-Item "$env:APPDATA\claude-hud" -Recurse -Force
+```
+
+5. 装过 Chrome 扩展的话，到 `chrome://extensions` 把 HUD for Claude 移除（现在已经用不到它）。
+
+> **不要删** `%USERPROFILE%\.claude\` 和 `%USERPROFILE%\.codex\`：那是 Claude Code 和 Codex 自己的登录与记录，HUD 只是借来读。删了它们会被登出，对话记录也没了。
 
 ---
 
