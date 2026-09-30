@@ -245,6 +245,10 @@
       n >= 1e3 ? Math.round(n/1e3)+'K'  : String(n||0);
     const fmtUSD = n =>
       n >= 1000 ? '$'+n.toLocaleString('en-US',{maximumFractionDigits:0}) : '$'+(n||0).toFixed(2);
+    /* A figure that includes a model priced by guess (its family's rate, or none yet)
+       carries "≈" — see LocalUsage.js priceKind. */
+    const EST_TIP = 'Estimated: includes a model without its own price yet, priced like its model family';
+    const usdEst = (n, est) => est ? `<span title="${EST_TIP}">≈${fmtUSD(n)}</span>` : fmtUSD(n);
 
     function prettyModel(id) {
       if (!id) return 'unknown';
@@ -334,9 +338,9 @@
       if (local && !lean) {
         const t = local.today;
         hero = `<div class="hero no-drag" id="hero">
-          <div class="hero-val num">${heroMode==='usd' ? fmtUSD(t.usd) : fmtTokens(t.tokens)}</div>
+          <div class="hero-val num">${heroMode==='usd' ? usdEst(t.usd, t.est) : fmtTokens(t.tokens)}</div>
           <div class="hero-sub">today · ${heroMode==='usd'
-            ? fmtTokens(t.tokens)+' tokens' : fmtUSD(t.usd)+' at API rates'}</div>
+            ? fmtTokens(t.tokens)+' tokens' : usdEst(t.usd, t.est)+' at API rates'}</div>
         </div>`;
       }
 
@@ -345,7 +349,7 @@
       if (quota) {
         quotaHtml += quotaRow('current session', quota.session);
         const sub = [];
-        if (local && !lean) sub.push(fmtUSD(local.week.usd)+' used');
+        if (local && !lean) sub.push(usdEst(local.week.usd, local.week.est)+' used');
         if (state.quotaStale && quota.fetchedAt) {
           const d = new Date(quota.fetchedAt);
           sub.push('as of ' + String(d.getHours()).padStart(2,'0')
@@ -370,7 +374,7 @@
             <span class="m-name">${prettyModel(r.model)}</span>
             <span class="m-track"><span class="m-fill ${i===0?'top':''}"
               style="width:${Math.max(2, 100*metric(r)/peak)}%"></span></span>
-            <span class="m-val num">${heroMode==='usd' ? fmtUSD(r.usd) : fmtTokens(r.tokens)}</span>
+            <span class="m-val num">${heroMode==='usd' ? usdEst(r.usd, r.est) : fmtTokens(r.tokens)}</span>
           </div>`;
         });
       }
@@ -383,11 +387,11 @@
         ser.forEach((d, i) => {
           spark += `<div class="bar ${i===ser.length-1?'today':''}"
                      style="height:${Math.max(1, Math.round(26*d.usd/peak))}px"
-                     title="${d.day} · ${fmtUSD(d.usd)}"></div>`;
+                     title="${d.day} · ${d.est ? '≈' : ''}${fmtUSD(d.usd)}"></div>`;
         });
         spark += `</div><div class="spark-foot"><span class="l">30 days</span>
           <span class="r num">${heroMode==='usd'
-            ? fmtUSD(local.month.usd) : fmtTokens(local.month.tokens)}</span></div>`;
+            ? usdEst(local.month.usd, local.month.est) : fmtTokens(local.month.tokens)}</span></div>`;
       }
 
       // ---- lifetime ----
@@ -396,7 +400,7 @@
         const a = local.allTime;
         life = `<div class="hair"></div><div class="life">
           <span class="l">lifetime${a.firstDay ? ' · since '+shortDay(a.firstDay) : ''}</span>
-          <span class="r num">${heroMode==='usd' ? fmtUSD(a.usd) : fmtTokens(a.tokens)}</span>
+          <span class="r num">${heroMode==='usd' ? usdEst(a.usd, a.est) : fmtTokens(a.tokens)}</span>
         </div>`;
       }
 

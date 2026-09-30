@@ -50,6 +50,12 @@ const PRICE = {
   'claude-fable-5-1':          [10, 50, W_CACHE_READ_FABLE_51],
   'claude-fable-5':            [10, 50],   // 5.0 reads at the ordinary 0.1×
   'claude-mythos-5':           [10, 50],
+  // Opus 5.5 is the first release to break "same tier, same price": $4 / $20 with cache
+  // reads at $0.20/MTok (0.05× input). Priced by the Opus tier fallback it was overstated
+  // by ~1.9× on a real Opus-5.5-heavy week (2026-09-30: $7,026 → $3,704) — hence exact rows
+  // for every current model; the tier table is only a guess.
+  'claude-opus-5-5':           [4, 20, 0.05],
+  'claude-sonnet-5-5':         [2, 10],    // cache reads $0.20 = the ordinary 0.1×
   'claude-opus-5':             [5, 25],
   'claude-opus-4-8':           [5, 25],
   'claude-opus-4-7':           [5, 25],
@@ -116,6 +122,19 @@ function addInto(dst, src) {
 function weightedInput(b, wRead = W_CACHE_READ) {
   return b.input + b.cache1h * W_CACHE_1H + b.cache5m * W_CACHE_5M + b.cacheRead * wRead;
 }
+
+/**
+ * How a model's spend is priced: 'exact' (its own row in PRICE), 'tier' (a guess from
+ * its family's price — right until a release changes price, as Opus 5.5 did) or 'none'
+ * (no rate at all: counted in tokens, $0 in spend). Anything but 'exact' is shown with
+ * a "≈" so a guessed or incomplete dollar figure never looks as sure as a real one.
+ */
+function priceKind(model) {
+  const id = String(model || '').replace(/\[[^\]]*\]$/, '');
+  if (PRICE[id]) return 'exact';
+  return TIER_PRICE[id.replace(/^claude-/, '').split('-')[0]] ? 'tier' : 'none';
+}
+const isEstimate = (model) => model !== '<synthetic>' && priceKind(model) !== 'exact';
 
 function costUSD(model, b) {
   const p = rateFor(model);
@@ -289,7 +308,7 @@ class LocalUsageScanner {
     const sumRange = (fromKey) => {
       const total = EMPTY();
       const byModel = {};
-      let usd = 0;
+      let usd = 0, est = false;
       for (const [day, models] of Object.entries(all)) {
         if (day < fromKey || day > todayKey) continue;
         for (const [model, b] of Object.entries(models)) {
@@ -297,9 +316,10 @@ class LocalUsageScanner {
           const m = byModel[model] || (byModel[model] = EMPTY());
           addInto(m, b);
           usd += costUSD(model, b);
+          if (rawTokens(b) > 0 && isEstimate(model)) est = true;
         }
       }
-      return { total, byModel, usd };
+      return { total, byModel, usd, est };
     };
 
     const shift = (days) => {
@@ -319,21 +339,25 @@ class LocalUsageScanner {
       const key = shift(i);
       const models = all[key] || {};
       const b = EMPTY();
-      let usd = 0;
-      for (const [model, mb] of Object.entries(models)) { addInto(b, mb); usd += costUSD(model, mb); }
-      series.push({ day: key, tokens: rawTokens(b), weighted: weightedInput(b), usd });
+      let usd = 0, est = false;
+      for (const [model, mb] of Object.entries(models)) {
+        addInto(b, mb); usd += costUSD(model, mb);
+        if (rawTokens(mb) > 0 && isEstimate(model)) est = true;
+      }
+      series.push({ day: key, tokens: rawTokens(b), weighted: weightedInput(b), usd, est });
     }
 
     const modelRows = Object.entries(week.byModel)
-      .map(([model, b]) => ({ model, tokens: rawTokens(b), weighted: weightedInput(b), usd: costUSD(model, b) }))
+      .map(([model, b]) => ({ model, tokens: rawTokens(b), weighted: weightedInput(b), usd: costUSD(model, b),
+                              est: isEstimate(model) }))
       .filter(r => r.tokens > 0)
       .sort((a, b) => b.usd - a.usd || b.tokens - a.tokens);
 
     return {
-      today:   { tokens: rawTokens(today.total),  weighted: weightedInput(today.total),  usd: today.usd },
-      week:    { tokens: rawTokens(week.total),   weighted: weightedInput(week.total),   usd: week.usd },
-      month:   { tokens: rawTokens(month.total),  weighted: weightedInput(month.total),  usd: month.usd },
-      allTime: { tokens: rawTokens(allTime.total), weighted: weightedInput(allTime.total), usd: allTime.usd,
+      today:   { tokens: rawTokens(today.total),  weighted: weightedInput(today.total),  usd: today.usd,  est: today.est },
+      week:    { tokens: rawTokens(week.total),   weighted: weightedInput(week.total),   usd: week.usd,   est: week.est },
+      month:   { tokens: rawTokens(month.total),  weighted: weightedInput(month.total),  usd: month.usd,  est: month.est },
+      allTime: { tokens: rawTokens(allTime.total), weighted: weightedInput(allTime.total), usd: allTime.usd, est: allTime.est,
                  firstDay: dayKeys[0] || null },
       byModel: modelRows,
       series,
@@ -341,4 +365,4 @@ class LocalUsageScanner {
   }
 }
 
-module.exports = { LocalUsageScanner, PRICE, W_CACHE_READ, W_CACHE_READ_FABLE_51, W_CACHE_1H, W_CACHE_5M };
+module.exports = { LocalUsageScanner, PRICE, priceKind, W_CACHE_READ, W_CACHE_READ_FABLE_51, W_CACHE_1H, W_CACHE_5M };
