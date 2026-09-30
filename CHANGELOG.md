@@ -7,6 +7,25 @@ are versioned independently.
 
 # Desktop app
 
+## [3.8.1] - 2026-09-30
+
+### Fixed
+
+- **Claude Opus 5.5 spend was overstated about twofold.** Opus 5.5 is priced
+  below the Opus models before it ($4 / $20 per million tokens, cache reads
+  $0.20), but the HUD had no row for it and priced it like earlier Opus
+  models. Every dollar figure that included it (today, the week, 30 days,
+  lifetime, by model) came out too high; on one Opus-5.5-heavy week, $7,026
+  instead of $3,704. Opus 5.5 and Sonnet 5.5 now have their own prices.
+
+### Changed
+
+- A dollar figure that includes a model the HUD has no exact price for yet —
+  a model released after this version — now shows "≈" in front, with a note
+  on hover. Such a model is still priced like its family (Opus, Sonnet, …) so
+  the figure stays useful, but it no longer looks as certain as one worked out
+  from the model's own price.
+
 ## [3.8.0] - 2026-09-28
 
 ### Added
