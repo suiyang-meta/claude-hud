@@ -6,8 +6,8 @@
 #
 # Publishes widget/package.json's version from release-assets/out/<version>/,
 # which `./scripts/package-release.sh both` fills and signs. The two bundles for
-# people installing by hand are not uploaded anywhere: they go to Gumroad, by
-# hand, as before. GitHub stays source-only; the README says so, on purpose.
+# people installing by hand go to the Gumroad product (scripts/publish-gumroad.sh,
+# run last). GitHub stays source-only; the README says so, on purpose.
 #
 # Once latest.json is replaced, every copy that checks will download this
 # version, so it refuses unless everything holds first:
@@ -19,8 +19,9 @@
 # The installers go up before latest.json, so no copy is ever told about a file
 # that is not there yet. Afterwards it reads latest.json back through the same
 # public URL the app uses, verifies it again, and checks each file is served
-# whole — and only once all of that and the GitHub notes have gone through does
-# it move the stage to the Trash. A run that stops part-way keeps it for a rerun.
+# whole — and only once all of that, the GitHub notes and the Gumroad swap have gone
+# through does it move the stage to the Trash. A run that stops part-way keeps it;
+# if only the Gumroad step failed, rerun ./scripts/publish-gumroad.sh on its own.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -89,9 +90,13 @@ Already on 3.7.0 or later? The app updates itself: right-click → Restart to Up
 gh release create "v$VERSION" -R "$REPO" --target "$(git rev-parse HEAD)" \
   --title "HUD for Claude v$VERSION" --notes "$NOTES"
 
-# The stage has done its job: the update files are on R2, verified as served,
-# and the two bundles for Gumroad are still on the Desktop. Left here it would
-# hold a few hundred MB of copies until the next release.
+# Last: the hand-install bundles on Gumroad. R2 and GitHub are already live, so a
+# failure here stops before the Trash and says how to finish; it doesn't undo anything.
+./scripts/publish-gumroad.sh || die "R2 and GitHub are live, Gumroad is not — fix it and rerun ./scripts/publish-gumroad.sh"
+
+# The stage has done its job: the update files are on R2, verified as served, and
+# the hand-install bundles are on Gumroad (copies stay on the Desktop). Left here it
+# would hold a few hundred MB of copies until the next release.
 TRASH="$HOME/.Trash/hud-for-claude-release-$VERSION-$(date +%Y%m%d-%H%M%S)"
 mv "$STAGE" "$TRASH" && echo "  stage moved to the Trash ($(basename "$TRASH"))"
 echo "OK — v$VERSION is live; every copy from 3.7.0 on will find it on its next check"
