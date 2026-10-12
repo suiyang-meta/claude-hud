@@ -7,6 +7,25 @@ are versioned independently.
 
 # Desktop app
 
+## [3.8.2] - 2026-10-12
+
+### Fixed
+
+- **Claude Sonnet 5.5 cache reads were priced at twice the official rate.**
+  Anthropic now prices Sonnet 5.5 cache hits at $0.10 per million tokens
+  (0.05× input, the same as Opus 5.5); the HUD still used $0.20. Dollar
+  figures that include Sonnet 5.5 came out slightly too high.
+
+### Added
+
+- **Claude Haiku 5.5 has its own price.** It was priced like Haiku 4.5, about
+  ten times too high. Haiku 5.5 is also the first model whose price depends on
+  prompt length: a request whose prompt (input plus cache reads and writes) is
+  over 100,000 tokens pays the higher rate ($0.50 / $2.50 per million tokens
+  instead of $0.10 / $0.50). The HUD now judges each request on its own, the
+  way it is billed. Usage recorded by an earlier version is priced at the lower
+  rate.
+
 ## [3.8.1] - 2026-09-30
 
 ### Fixed
