@@ -28,7 +28,9 @@ const sim = opt('--simulate-missing', null);
 if (sim) delete L.PRICE[sim];
 
 const table = {};
-for (const [id, p] of Object.entries(L.PRICE)) {
+const rows = Object.entries(L.PRICE);
+for (const [id, l] of Object.entries(L.LONG_PROMPT)) rows.push([`${id} (prompt > ${l.over})`, l.rate]);
+for (const [id, p] of rows) {
   const read = p[2] != null ? p[2] : L.W_CACHE_READ;
   table[id] = { input: p[0], output: p[1], cacheRead: +(p[0] * read).toFixed(4),
                 cacheWrite5m: +(p[0] * L.W_CACHE_5M).toFixed(4), cacheWrite1h: +(p[0] * L.W_CACHE_1H).toFixed(4) };

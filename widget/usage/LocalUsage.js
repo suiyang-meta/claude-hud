@@ -40,7 +40,7 @@ const W_CACHE_5M   = 1.25;   // 5-minute TTL write
 const W_CACHE_READ_FABLE_51 = 0.025;
 
 // USD per 1M tokens [input, output, cacheReadMultiplier]. List price, checked
-// 2026-09-21 against platform.claude.com prompt-caching + pricing docs.
+// 2026-10-12 against platform.claude.com prompt-caching + pricing docs.
 // Unknown models still count tokens; they just contribute $0.
 const PRICE = {
   // Claude Mythos 5.1 is documented as sharing Fable 5.1's pricing and API
@@ -55,15 +55,32 @@ const PRICE = {
   // by ~1.9× on a real Opus-5.5-heavy week (2026-09-30: $7,026 → $3,704) — hence exact rows
   // for every current model; the tier table is only a guess.
   'claude-opus-5-5':           [4, 20, 0.05],
-  'claude-sonnet-5-5':         [2, 10],    // cache reads $0.20 = the ordinary 0.1×
+  // Sonnet 5.5 cache reads were $0.20 (0.1×) at launch; since cut to $0.10 (0.05×).
+  'claude-sonnet-5-5':         [2, 10, 0.05],
   'claude-opus-5':             [5, 25],
   'claude-opus-4-8':           [5, 25],
   'claude-opus-4-7':           [5, 25],
   'claude-opus-4-6':           [5, 25],
   'claude-sonnet-5':           [2, 10],
   'claude-sonnet-4-6':         [3, 15],
+  // Haiku 5.5 is the one model whose price depends on prompt length: this row is
+  // for prompts up to 100K tokens; longer ones use LONG_PROMPT below.
+  'claude-haiku-5-5':          [0.1, 0.5],
   'claude-haiku-4-5-20251001': [1, 5],
   'claude-haiku-4-5':          [1, 5],
+};
+
+/**
+ * Models billed at a higher rate when one request's prompt passes a threshold.
+ * "Prompt" is every input token of that request — input, cache writes and cache
+ * reads — and each request is judged on its own (Anthropic pricing docs, "Long
+ * context pricing"). The daily buckets would lose that per-request size, so the
+ * scan files such requests under the id plus LONG_TAG and rateFor picks the
+ * higher rate for them; the model breakdown folds them back into one row.
+ */
+const LONG_TAG = '[long-prompt]';
+const LONG_PROMPT = {
+  'claude-haiku-5-5': { over: 100000, rate: [0.5, 2.5] },
 };
 
 /**
@@ -88,6 +105,11 @@ const TIER_PRICE = {
 const unpricedModels = new Set();
 
 function rateFor(model) {
+  const m = String(model || '');
+  if (m.endsWith(LONG_TAG)) {
+    const long = LONG_PROMPT[m.slice(0, -LONG_TAG.length)];
+    if (long) return long.rate;
+  }
   // Claude Code tags the long-context variant as e.g. "claude-opus-5[1m]". It is
   // the same model at the same list price; without stripping the tag it misses
   // the exact table and only survives via the tier fallback.
@@ -189,9 +211,12 @@ async function scanFile(file, tzOffsetMinutes) {
       c5m = 0;
     }
 
+    const model = msg.model || 'unknown';
+    const long = LONG_PROMPT[model];
+    const prompt = (u.input_tokens || 0) + c1h + c5m + (u.cache_read_input_tokens || 0);
     best.set(key, {
       output: out,
-      model: msg.model || 'unknown',
+      model: long && prompt > long.over ? model + LONG_TAG : model,
       day: localDayKey(o.timestamp, tzOffsetMinutes),
       b: {
         input: u.input_tokens || 0,
@@ -347,9 +372,16 @@ class LocalUsageScanner {
       series.push({ day: key, tokens: rawTokens(b), weighted: weightedInput(b), usd, est });
     }
 
-    const modelRows = Object.entries(week.byModel)
-      .map(([model, b]) => ({ model, tokens: rawTokens(b), weighted: weightedInput(b), usd: costUSD(model, b),
-                              est: isEstimate(model) }))
+    // Long-prompt requests were filed under their own key only to be priced apart;
+    // on screen they are the same model.
+    const rowsBy = {};
+    for (const [key, b] of Object.entries(week.byModel)) {
+      const model = key.endsWith(LONG_TAG) ? key.slice(0, -LONG_TAG.length) : key;
+      const r = rowsBy[model] || (rowsBy[model] = { model, tokens: 0, weighted: 0, usd: 0, est: false });
+      r.tokens += rawTokens(b); r.weighted += weightedInput(b); r.usd += costUSD(key, b);
+      if (rawTokens(b) > 0 && isEstimate(key)) r.est = true;
+    }
+    const modelRows = Object.values(rowsBy)
       .filter(r => r.tokens > 0)
       .sort((a, b) => b.usd - a.usd || b.tokens - a.tokens);
 
@@ -365,4 +397,4 @@ class LocalUsageScanner {
   }
 }
 
-module.exports = { LocalUsageScanner, PRICE, priceKind, W_CACHE_READ, W_CACHE_READ_FABLE_51, W_CACHE_1H, W_CACHE_5M };
+module.exports = { LocalUsageScanner, PRICE, LONG_PROMPT, priceKind, W_CACHE_READ, W_CACHE_READ_FABLE_51, W_CACHE_1H, W_CACHE_5M };
