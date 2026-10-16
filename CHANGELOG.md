@@ -7,7 +7,7 @@ are versioned independently.
 
 # Desktop app
 
-## [Unreleased]
+## [3.9.0] - 2026-10-16
 
 ### Added
 
