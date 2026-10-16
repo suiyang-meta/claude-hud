@@ -1161,18 +1161,30 @@ async function refreshCodex() {
   }
 }
 
-async function refreshLocal() {
-  try {
-    await scanner.refresh();
-    usageState.local = scanner.stats();
-  } catch (e) {
-    console.log('[HUD] local usage scan failed:', e.message);
+// One pass at a time. A first pass reads every transcript (~25 s for 8.5 GB on
+// an M4 Air) and the 30 s timer would otherwise start a second one beside it.
+let localPass = null;
+function refreshLocal() {
+  if (!localPass) {
+    localPass = (async () => {
+      try {
+        await scanner.refresh();
+        usageState.local = scanner.stats();
+      } catch (e) {
+        console.log('[HUD] local usage scan failed:', e.message);
+      }
+      pushUsage();
+    })().finally(() => { localPass = null; });
   }
-  pushUsage();
+  return localPass;
 }
 
 function startUsageService() {
   scanner = new LocalUsageScanner(path.join(app.getPath('userData'), 'usage-cache.json'));
+  // Show what the cache already knows while the first pass runs. That pass is
+  // normally a fraction of a second, but the first one after an update that
+  // reads something new from the transcripts (the activity heatmap) reads them all.
+  if (scanner.hasCache()) usageState.local = scanner.stats();
   OAuthUsage.fetchProfile()
     .then((prof) => { usageState.profile = prof; pushUsage(); })
     .catch(() => {});

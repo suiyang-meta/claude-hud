@@ -196,6 +196,19 @@
     .sig .upd { color:rgba(217,119,87,0.72); font-size:8px; transition:color .22s; }
     .sig .upd:hover { color:rgb(217,119,87); }
 
+    /* Usage | Activity. Full width so it reads as the panel's own two pages,
+       not as one more control squeezed beside the name. */
+    .vtabs { display:flex; gap:2px; padding:2px; margin:-2px 0 11px; border-radius:6px;
+             background:rgba(242,236,231,0.035); -webkit-app-region:no-drag; }
+    .vtabs button { all:unset; flex:1; text-align:center; cursor:pointer; font-size:9.5px;
+                    line-height:1; padding:4px 0; border-radius:4px; color:var(--text-low);
+                    transition:color .15s, background-color .15s; }
+    .vtabs button:hover { color:var(--text-mid); }
+    .vtabs button.on { color:var(--text); background:rgba(242,236,231,0.08); }
+    #inner.wide .vtabs { grid-column: 1 / -1; }   /* above both columns, not in one */
+    #actSlot { -webkit-app-region:no-drag; }
+    #inner.wide-act #actSlot { max-width:520px; }
+
     .empty { text-align:center; padding:22px 4px; }
     .empty .h { font-size:11.5px; color:var(--text-mid); font-weight:600; margin-bottom:6px; }
     .empty .b { font-size:9.5px; color:var(--text-low); line-height:1.65; }
@@ -229,6 +242,7 @@
     </div>
   </div>
 
+  <script src="usage/activity-card.js"></script>
   <script>
     const hud   = document.getElementById('hud');
     const inner = document.getElementById('inner');
@@ -239,6 +253,32 @@
     let heroMode = 'usd';     // 'usd' | 'tokens'
     let compact  = false;     // amber button: quota bars only
     let locked   = false;     // green button: never fade out
+    // Which page the panel shows. Remembered, so a panel last left on Activity
+    // opens on it again — the heatmap is the point of opening it.
+    let view = (() => { try { return localStorage.getItem('hud.view') === 'activity' ? 'activity' : 'usage'; }
+                        catch { return 'usage'; } })();
+
+    // The activity card lives outside #body, which every render rebuilds: it is
+    // moved into place each time, and redrawn only when its data changes.
+    const actEl = document.createElement('div');
+    actEl.id = 'actSlot';
+    // Refit the window when the card changes height (another tab, Show more),
+    // not on every data tick — that would undo a height the user dragged.
+    let actH = 0;
+    const card = window.ActivityCard.mount(actEl, { onLayout: () => {
+      if (view !== 'activity' || !actEl.isConnected) return;
+      if (actEl.offsetHeight !== actH) { actH = actEl.offsetHeight; lastKey = ''; }
+      syncLayout();
+    } });
+    let actSig = null;
+    function feedCard(local) {
+      const a = local ? local.activity : undefined;
+      const today = new Date();
+      const sig = (a ? JSON.stringify(a) : '') + '|' + today.toDateString();
+      if (sig === actSig) return;
+      actSig = sig;
+      card.update(a);
+    }
 
     const fmtTokens = n =>
       n >= 1e9 ? (n/1e9).toFixed(1)+'B' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' :
@@ -333,6 +373,10 @@
       inner.classList.toggle('tight', lean);
       document.getElementById('btnMini').classList.toggle('on', lean);
 
+      const tabs = lean ? '' : `<div class="vtabs no-drag">
+          <button data-view="usage" class="${view === 'usage' ? 'on' : ''}">Usage</button>
+          <button data-view="activity" class="${view === 'activity' ? 'on' : ''}">Activity</button></div>`;
+
       // ---- hero ----
       let hero = '';
       if (local && !lean) {
@@ -408,10 +452,27 @@
         ? `<div class="sig with-upd"><span class="upd" id="upd" title="Restart into the new version">Update to ${upd.version} — restart</span>
              <span id="sig" title="HUD for Claude — by Sui1491">by Sui1491</span></div>`
         : '<div class="sig" id="sig" title="HUD for Claude — by Sui1491">by Sui1491</div>';
-      body.innerHTML = (wide
-        ? `<div class="col-a">${hero}${quotaHtml}</div>
-           <div class="col-b">${models}${spark}${life}</div>`
-        : hero + quotaHtml + models + spark + life) + sig;
+      if (view === 'activity' && !lean) {
+        inner.classList.remove('wide');   // one column at any width; the card spans it
+        inner.classList.toggle('wide-act', wide);
+        body.innerHTML = tabs + sig;
+        body.insertBefore(actEl, body.lastElementChild);
+        feedCard(local);
+      } else {
+        inner.classList.remove('wide-act');
+        body.innerHTML = tabs + (wide
+          ? `<div class="col-a">${hero}${quotaHtml}</div>
+             <div class="col-b">${models}${spark}${life}</div>`
+          : hero + quotaHtml + models + spark + life) + sig;
+      }
+      body.querySelectorAll('.vtabs button').forEach((b) => b.addEventListener('click', () => {
+        if (b.dataset.view === view) return;
+        view = b.dataset.view;
+        try { localStorage.setItem('hud.view', view); } catch {}
+        // Each page has its own natural height: grow or shrink the window to it.
+        expandOnce = true; lastKey = '';
+        render();
+      }));
 
       const sigEl = document.getElementById('sig');
       if (sigEl) sigEl.addEventListener('click', () => window.hudAPI.openRepo());
@@ -446,6 +507,9 @@
 
     function pickMode(w, h) {
       if (compact) return 'trim';
+      // The activity page is one column that scales to fit; trimming it would
+      // fall back to the usage page and the switch could never be used.
+      if (view === 'activity') return w > 450 ? 'wide' : 'full';
       const splitFloor = mode === 'wide' ? 238 : 250;
       const hFull      = mode === 'full' ? 384 : H_FULL;
       const hWide      = mode === 'wide' ? 244 : H_WIDE;

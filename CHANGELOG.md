@@ -7,6 +7,27 @@ are versioned independently.
 
 # Desktop app
 
+## [Unreleased]
+
+### Added
+
+- **Activity heatmap.** The Claude panel has two pages now, Usage and
+  Activity, and remembers which one you left it on. Activity is the card the
+  Claude desktop app's Code tab used to open on, until its October 15 update
+  removed it: sessions, messages, total tokens, active days, peak hour and
+  favorite model over All / 30 days / 7 days, a 26-week heatmap of messages
+  per day, and a Models tab with daily tokens per model. Counted from your
+  Claude Code transcripts by the desktop app's own rules; the heatmap's four
+  shades split your active days into quartiles. The first launch after
+  updating reads every transcript once (about half a minute for a heavy
+  user); the Usage page shows meanwhile, and the heatmap fills in when it is
+  done.
+
+### Fixed
+
+- A slow scan of the transcripts could be started a second time beside
+  itself by the 30-second refresh.
+
 ## [3.8.2] - 2026-10-12
 
 ### Fixed

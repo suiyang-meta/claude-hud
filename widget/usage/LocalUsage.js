@@ -177,11 +177,42 @@ function localDayKey(iso, tzOffsetMinutes) {
 }
 
 /**
- * Scan one transcript. Returns { [dayKey]: { [model]: bucket } }.
- * Streams line-by-line — some transcripts are tens of MB.
+ * Which transcripts feed the activity heatmap, and in what role. The rules are
+ * the Claude desktop app's own (its Code tab drew this card until 2026-10-15):
+ * a session's transcript sits directly in its project folder; a subagent's in
+ * that session's subagents/ folder. Workflow agents nest one level deeper and
+ * count as subagents too — the desktop app missed those, but they are real
+ * work. Anything else under projects/ (an app's own .jsonl notes, say) is not
+ * a conversation. A subagent never starts a session or adds messages; it only
+ * adds tool calls.
  */
-async function scanFile(file, tzOffsetMinutes) {
+const MAX_ACT_FILE = 1024 * 1024 * 1024;   // the desktop app skips files past 1 GB…
+const MAX_ACT_LINE = 16 * 1024 * 1024;     // …and lines past 16 MB
+function activityKind(file, size) {
+  if (size > MAX_ACT_FILE) return null;
+  const parts = path.relative(ROOT, file).split(path.sep);
+  const name = parts[parts.length - 1];
+  if (!name.endsWith('.jsonl') || name.includes('.superseded-')) return null;
+  if (parts.length === 2) return 'main';
+  if (parts[2] === 'subagents' && name.startsWith('agent-')
+      && (parts.length === 4 || (parts.length === 6 && parts[3] === 'workflows'))) return 'sub';
+  return null;
+}
+
+/**
+ * Scan one transcript. Returns { days: { [dayKey]: { [model]: bucket } }, act }.
+ * Streams line-by-line — some transcripts are tens of MB.
+ *
+ * act (only when kind is given) is what the heatmap counts, by the desktop
+ * app's definitions: every user or assistant row is one message (streamed
+ * rows of one reply included — that is how its numbers were made), every
+ * tool_use block one tool call, and the first such row marks when the
+ * session started. Shape: { kind, first: <ISO timestamp>|null,
+ * days: { [dayKey]: [messages, toolCalls] } }.
+ */
+async function scanFile(file, tzOffsetMinutes, kind = null) {
   const best = new Map();   // requestId -> {model, day, usage-ish, output}
+  const act = kind ? { kind, first: null, days: {} } : null;
   const rl = readline.createInterface({
     input: fs.createReadStream(file, { encoding: 'utf8' }),
     crlfDelay: Infinity,
@@ -191,6 +222,21 @@ async function scanFile(file, tzOffsetMinutes) {
     if (!line || line.charCodeAt(0) !== 123 /* { */) continue;
     let o;
     try { o = JSON.parse(line); } catch { continue; }
+    if (act && (o.type === 'user' || o.type === 'assistant') && o.timestamp
+        && line.length <= MAX_ACT_LINE
+        && o.userType !== 'ant'                         // Anthropic's own internal rows
+        && !(kind === 'main' && o.isSidechain)) {
+      const day = localDayKey(o.timestamp, tzOffsetMinutes);
+      if (day) {
+        if (!act.first) act.first = o.timestamp;
+        const d = act.days[day] || (act.days[day] = [0, 0]);
+        d[0]++;
+        const content = o.type === 'assistant' && o.message && o.message.content;
+        if (Array.isArray(content)) {
+          for (const c of content) if (c && c.type === 'tool_use') d[1]++;
+        }
+      }
+    }
     if (o.type !== 'assistant') continue;
     const msg = o.message;
     if (!msg || !msg.usage || !o.timestamp) continue;
@@ -235,7 +281,7 @@ async function scanFile(file, tzOffsetMinutes) {
     const bucket = byModel[r.model] || (byModel[r.model] = EMPTY());
     addInto(bucket, r.b);
   }
-  return days;
+  return { days, act };
 }
 
 function walk(dir, out = []) {
@@ -258,6 +304,10 @@ class LocalUsageScanner {
     this.cachePath = cachePath;
     this.tz = tzOffsetMinutes;
     this.cache = { version: 1, files: {} };
+    // Activity is withheld until one full pass has read every transcript. Until
+    // then a cache written before the heatmap existed would show it nearly
+    // empty, which reads as real numbers rather than as "not yet".
+    this.actReady = false;
     try {
       const c = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
       if (c && c.version === 1 && c.files) this.cache = c;
@@ -285,16 +335,20 @@ class LocalUsageScanner {
       let st;
       try { st = fs.statSync(f); } catch { continue; }
       const hit = this.cache.files[f];
-      if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) {
+      const kind = activityKind(f, st.size);
+      // Entries cached before the heatmap existed have no `act`: read those once
+      // more, so the heatmap reaches back as far as the transcripts do.
+      if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size
+          && (hit.act !== undefined || !kind)) {
         if (hit.pruned) delete hit.pruned;
         continue;
       }
       // One unreadable file skips itself, not the whole pass. Claude Code's own
       // cleanup deletes transcripts on a schedule, so a file listed by walk()
       // can be gone by the time it is opened.
-      let days;
-      try { days = await scanFile(f, this.tz); } catch { continue; }
-      this.cache.files[f] = { mtimeMs: st.mtimeMs, size: st.size, days };
+      let r;
+      try { r = await scanFile(f, this.tz, kind); } catch { continue; }
+      this.cache.files[f] = { mtimeMs: st.mtimeMs, size: st.size, days: r.days, act: r.act };
       rescanned++;
     }
 
@@ -307,8 +361,11 @@ class LocalUsageScanner {
       if (!live.has(f)) { rec.pruned = true; pruned++; }
     }
     this.save();
+    this.actReady = true;
     return { files: files.length, rescanned, pruned };
   }
+
+  hasCache() { return Object.keys(this.cache.files).length > 0; }
 
   /** Merge every cached file into { [day]: { [model]: bucket } }. */
   merged() {
@@ -323,6 +380,61 @@ class LocalUsageScanner {
       }
     }
     return all;
+  }
+
+  /**
+   * The activity card (the Claude desktop app's Code-tab heatmap, rebuilt).
+   * Daily rows rather than totals, so the panel can sum any range itself:
+   *   days     [{ date, messages, sessions, tools }], oldest first, active days only
+   *   tokens   { [date]: { [model]: [tokens, input, output] } }
+   *   peakHour the local hour most sessions started in, or null
+   * Tokens come from the same deduplicated buckets as the rest of the panel, so
+   * the two views never disagree. A transcript cached before this existed and
+   * since deleted by Claude Code has tokens but no activity, and is left out
+   * of the activity counts rather than guessed at.
+   */
+  activity(all = this.merged()) {
+    const byDay = {};
+    const subTools = {};
+    const hours = new Array(24).fill(0);
+    let sessions = 0;
+    const row = (day) => byDay[day] || (byDay[day] = { date: day, messages: 0, sessions: 0, tools: 0 });
+    for (const rec of Object.values(this.cache.files)) {
+      const a = rec.act;
+      if (!a) continue;
+      if (a.kind === 'main') {
+        for (const [day, [m, t]] of Object.entries(a.days)) { const r = row(day); r.messages += m; r.tools += t; }
+        const day = a.first && localDayKey(a.first, this.tz);
+        if (day) {
+          row(day).sessions++;
+          hours[new Date(Date.parse(a.first) + this.tz * 60000).getUTCHours()]++; // 时区：本机（先平移 this.tz，再读 UTC 小时）
+          sessions++;
+        }
+      } else {
+        for (const [day, [, t]] of Object.entries(a.days)) subTools[day] = (subTools[day] || 0) + t;
+      }
+    }
+    // A subagent's tool calls join a day the sessions already made active; on
+    // their own they do not make a day active (the desktop app's rule).
+    for (const [day, t] of Object.entries(subTools)) if (byDay[day]) byDay[day].tools += t;
+
+    const tokens = {};
+    for (const [day, byModel] of Object.entries(all)) {
+      for (const [key, b] of Object.entries(byModel)) {
+        const model = key.replace(LONG_TAG, '').replace(/\[[^\]]*\]$/, '');
+        const n = rawTokens(b);
+        if (model === '<synthetic>' || n <= 0) continue;
+        const d = tokens[day] || (tokens[day] = {});
+        const cur = d[model] || (d[model] = [0, 0, 0]);
+        cur[0] += n; cur[1] += b.input; cur[2] += b.output;
+      }
+    }
+    const peak = Math.max(...hours);
+    return {
+      days: Object.values(byDay).sort((a, b) => (a.date < b.date ? -1 : 1)),
+      tokens,
+      peakHour: sessions && peak > 0 ? hours.indexOf(peak) : null,
+    };
   }
 
   /** Everything the HUD renders, in one pass. */
@@ -393,6 +505,7 @@ class LocalUsageScanner {
                  firstDay: dayKeys[0] || null },
       byModel: modelRows,
       series,
+      activity: this.actReady ? this.activity(all) : null,
     };
   }
 }
