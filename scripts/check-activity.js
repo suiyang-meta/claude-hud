@@ -3,7 +3,7 @@
 /*
  * Activity-card check: do the heatmap's numbers match the transcripts?
  *
- *   node scripts/check-activity.js [YYYY-MM-DD ...]
+ *   node scripts/check-activity.js [--cache <usage-cache.json>] [YYYY-MM-DD ...]
  *
  * Counts messages, sessions and the peak hour straight from
  * ~/.claude/projects with an independent copy of the Claude desktop app's own
@@ -16,13 +16,19 @@
  * (subagents/workflows/), which the desktop app never listed, so its figure is
  * higher by design — and the card does not show it.
  *
+ * --cache compares against an existing cache instead (the installed app's is
+ * ~/Library/Application Support/claude-hud/usage-cache.json), read only, never
+ * refreshed: a long-lived cache is where history the app keeps for deleted or
+ * moved transcripts lives, and a fresh cache cannot show what that gets wrong
+ * (2026-10-17: a renamed project folder was counted twice). Days the app has
+ * not read since the cache was last saved will differ; pass the days to check.
+ *
  * Reads every transcript twice (about 40 s for 8 GB). Writes only to a
  * temporary folder, removed afterwards. Exit code 1 on any mismatch.
  */
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const readline = require('readline');
 const { LocalUsageScanner } = require('../widget/usage/LocalUsage.js');
 
 const ROOT = path.join(os.homedir(), '.claude', 'projects');
@@ -54,12 +60,14 @@ function listFiles() {
 }
 
 // One transcript, per the desktop app: every user/assistant row is a message,
-// the first one is when the session started.
+// the first one is when the session started. Lines split on \n only, as the
+// desktop app does (readline in newer Node also splits at U+2028).
 async function summarize(file, sub) {
   let first = null;
   const days = {};
-  const rl = readline.createInterface({ input: fs.createReadStream(file, 'utf8'), crlfDelay: Infinity });
-  for await (const line of rl) {
+  const lines = fs.readFileSync(file, 'utf8').split('\n');
+  for (const raw of lines) {
+    const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
     if (line.length > 16777216) continue;
     let r;
     try { r = JSON.parse(line); } catch { continue; }
@@ -73,6 +81,10 @@ async function summarize(file, sub) {
   }
   return first === null ? null : { first, days };
 }
+
+const argv = process.argv.slice(2);
+const ci = argv.indexOf('--cache');
+const CACHE = ci >= 0 ? argv.splice(ci, 2)[1] : null;
 
 (async () => {
   const ref = new Map();
@@ -88,14 +100,18 @@ async function summarize(file, sub) {
     for (const [d, n] of Object.entries(s.days)) row(d).messages += n;
   }
 
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hud-activity-check-'));
   let act;
-  try {
-    const sc = new LocalUsageScanner(path.join(tmp, 'usage-cache.json'));
-    await sc.refresh();
-    act = sc.stats().activity;
-  } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
+  if (CACHE) {
+    act = new LocalUsageScanner(CACHE).activity();     // read only: no refresh(), nothing saved
+  } else {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hud-activity-check-'));
+    try {
+      const sc = new LocalUsageScanner(path.join(tmp, 'usage-cache.json'));
+      await sc.refresh();
+      act = sc.stats().activity;
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   }
   const hud = new Map(act.days.map((d) => [d.date, d]));
 
@@ -111,7 +127,7 @@ async function summarize(file, sub) {
   const peak = Math.max(...hours);
   const refPeak = peak > 0 ? hours.indexOf(peak) : null;
   if (refPeak !== act.peakHour) { bad++; console.log(`MISMATCH peak hour: transcripts ${refPeak}, HUD ${act.peakHour}`); }
-  for (const d of process.argv.slice(2)) {
+  for (const d of argv) {
     const a = ref.get(d) || {}, b = hud.get(d) || {};
     console.log(`${d}  messages ${a.messages || 0} / ${b.messages || 0}   sessions ${a.sessions || 0} / ${b.sessions || 0}   (transcripts / HUD)`);
   }

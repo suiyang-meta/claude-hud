@@ -23,7 +23,6 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const readline = require('readline');
 
 const ROOT = path.join(os.homedir(), '.claude', 'projects');
 
@@ -177,6 +176,32 @@ function localDayKey(iso, tzOffsetMinutes) {
 }
 
 /**
+ * A transcript's lines, split on \n only (a \r before it is dropped).
+ *
+ * Not readline: newer Node versions also break lines at U+2028 / U+2029,
+ * which are legal inside JSON strings and do turn up in pasted text. One such
+ * row then arrives as three broken pieces, and its message and tokens are
+ * lost (seen 2026-10-17: Node 26 counted 224 messages where Node 18 and the
+ * Claude desktop app count 225). The app's Electron is on Node 18 today; this
+ * keeps the count right when it is not.
+ */
+async function* jsonLines(file) {
+  const strip = (line) => (line.endsWith('\r') ? line.slice(0, -1) : line);
+  let head = [];                       // pieces of a line that started in an earlier chunk
+  for await (const chunk of fs.createReadStream(file, { encoding: 'utf8', highWaterMark: 1 << 20 })) {
+    let from = 0, at;
+    while ((at = chunk.indexOf('\n', from)) !== -1) {
+      let line = chunk.slice(from, at);
+      if (head.length) { head.push(line); line = head.join(''); head = []; }
+      yield strip(line);
+      from = at + 1;
+    }
+    if (from < chunk.length) head.push(chunk.slice(from));
+  }
+  if (head.length) yield strip(head.join(''));
+}
+
+/**
  * Which transcripts feed the activity heatmap, and in what role. The rules are
  * the Claude desktop app's own (its Code tab drew this card until 2026-10-15):
  * a session's transcript sits directly in its project folder; a subagent's in
@@ -213,12 +238,8 @@ function activityKind(file, size) {
 async function scanFile(file, tzOffsetMinutes, kind = null) {
   const best = new Map();   // requestId -> {model, day, usage-ish, output}
   const act = kind ? { kind, first: null, days: {} } : null;
-  const rl = readline.createInterface({
-    input: fs.createReadStream(file, { encoding: 'utf8' }),
-    crlfDelay: Infinity,
-  });
 
-  for await (const line of rl) {
+  for await (const line of jsonLines(file)) {
     if (!line || line.charCodeAt(0) !== 123 /* { */) continue;
     let o;
     try { o = JSON.parse(line); } catch { continue; }
@@ -367,10 +388,28 @@ class LocalUsageScanner {
 
   hasCache() { return Object.keys(this.cache.files).length > 0; }
 
-  /** Merge every cached file into { [day]: { [model]: bucket } }. */
+  /**
+   * The cache entries to count. A transcript whose project folder was renamed
+   * shows up twice: its old path is no longer listed (so it is kept as pruned)
+   * and its new path is read afresh. Counting both doubled that history — a
+   * renamed project on 2026-10-17 put 29,270 messages and 4.5B tokens in twice.
+   * A session id is unique, so the path below the project folder names one
+   * transcript whatever the folder is called; a pruned entry counts only when
+   * no live file has that name, i.e. when Claude Code really deleted it.
+   */
+  counted() {
+    const name = (f) => path.relative(ROOT, f).split(path.sep).slice(1).join('/');
+    const live = new Set();
+    for (const [f, rec] of Object.entries(this.cache.files)) if (!rec.pruned) live.add(name(f));
+    return Object.entries(this.cache.files)
+      .filter(([f, rec]) => !rec.pruned || !live.has(name(f)))
+      .map(([, rec]) => rec);
+  }
+
+  /** Merge every counted file into { [day]: { [model]: bucket } }. */
   merged() {
     const all = {};
-    for (const rec of Object.values(this.cache.files)) {
+    for (const rec of this.counted()) {
       for (const [day, byModel] of Object.entries(rec.days || {})) {
         const dst = all[day] || (all[day] = {});
         for (const [model, b] of Object.entries(byModel)) {
@@ -399,7 +438,7 @@ class LocalUsageScanner {
     const hours = new Array(24).fill(0);
     let sessions = 0;
     const row = (day) => byDay[day] || (byDay[day] = { date: day, messages: 0, sessions: 0, tools: 0 });
-    for (const rec of Object.values(this.cache.files)) {
+    for (const rec of this.counted()) {
       const a = rec.act;
       if (!a) continue;
       if (a.kind === 'main') {
