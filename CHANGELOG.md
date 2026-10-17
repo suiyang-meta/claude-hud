@@ -7,6 +7,23 @@ are versioned independently.
 
 # Desktop app
 
+## [3.9.1] - 2026-10-17
+
+### Fixed
+
+- **Renaming a project folder counted its history twice.** When a project's
+  folder under `~/.claude/projects/` was renamed (or moved, with a link left
+  at the old name), its transcripts were counted under both names: the old
+  path was kept as if Claude Code had deleted it, and the new one was read
+  again. Spend, tokens and the Activity card's numbers all came out too high
+  for that project's history. A transcript now counts once, whatever its
+  folder is called; history is still kept for transcripts Claude Code really
+  deleted.
+- Text containing the Unicode line separator (U+2028, sometimes in pasted
+  text) could make a transcript row unreadable on newer runtimes. Rows are now
+  split on line breaks only, the way Claude Code writes them. The first full
+  read of the transcripts is also faster.
+
 ## [3.9.0] - 2026-10-16
 
 ### Added
